@@ -1,5 +1,6 @@
+// src/components/EvolutionSimulator/index.jsx
 import React, { useRef } from 'react';
-import useSimulation from '../../hooks/useSimulation';
+import useECSSimulation from '../../hooks/useECSSimulation';  // Update this import
 import SimulationCanvas from './SimulationCanvas';
 import SimulationControls from './SimulationControls';
 import SimulationStats from './SimulationStats';
@@ -7,17 +8,15 @@ import HelpPanel from './HelpPanel';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../simulation/constants';
 import './EvolutionSimulator.css';
 
-/**
- * Main Evolution Simulator component
- * Assembles all sub-components and manages the simulation
- */
 const EvolutionSimulator = () => {
   const canvasRef = useRef(null);
-  const simulation = useSimulation(canvasRef);
+  
+  // Use the ECS simulation hook instead of the original
+  const simulation = useECSSimulation(canvasRef);
   
   return (
     <div className="simulator-container">
-      <h1 className="simulator-title">Dot Organism Evolution Simulator</h1>
+      <h1 className="simulator-title">Dot Organism Evolution Simulator (ECS)</h1>
       
       <div className="simulator-layout">
         <div className="simulation-area">
