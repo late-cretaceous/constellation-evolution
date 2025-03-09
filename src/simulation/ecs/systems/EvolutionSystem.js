@@ -38,6 +38,7 @@ export class EvolutionSystem extends System {
       maxJoints: 0,
       avgJoints: 0
     };
+    this.generationCount = 0;
   }
 
   /**
@@ -66,8 +67,9 @@ export class EvolutionSystem extends System {
   initializeGeneration() {
     // Clear existing entities
     this.world.clear();
+    this.generationCount = 0;
     
-    // Create initial organisms
+    // Create initial organisms with randomized locomotion genetics
     for (let i = 0; i < this.populationSize; i++) {
       const pos = new Vector2(
         Math.random() * CANVAS_WIDTH,
@@ -75,7 +77,21 @@ export class EvolutionSystem extends System {
       );
       // Randomize starting joint count between MIN_JOINT_COUNT and MAX_JOINT_COUNT
       const jointCount = MIN_JOINT_COUNT + Math.floor(Math.random() * (MAX_JOINT_COUNT - MIN_JOINT_COUNT + 1));
-      this.entityFactory.createOrganism(pos.x, pos.y, jointCount);
+      
+      // Create a completely random genetic component for the first generation
+      // All organisms have the same food sensing ability, but different locomotion patterns
+      const genetics = new GeneticComponent(
+        150,                      // All organisms can sense food at the same distance
+        0.5 + Math.random() * 0.4,   // Random moveThreshold (0.5-0.9)
+        0.1 + Math.random() * 0.3,   // Random anchorThreshold (0.1-0.4)
+        0.1 + Math.random() * 0.3,   // Random anchorRatio (0.1-0.4)
+        0.5 + Math.random() * 2.5,   // Random movement magnitude (0.5-3.0)
+        0.2 + Math.random() * 1.3,   // Random movement frequency (0.2-1.5)
+        0.1 + Math.random() * 0.3,   // Very low initial food-seeking bias (mostly random)
+        0.5 + Math.random() * 1.5    // Random rotational force (0.5-2.0)
+      );
+      
+      this.entityFactory.createOrganism(pos.x, pos.y, jointCount, genetics);
     }
     
     // Create food
@@ -123,6 +139,8 @@ export class EvolutionSystem extends System {
    * @returns {Object} - Statistics for the new generation
    */
   createNextGeneration() {
+    this.generationCount++;
+    
     // Get all organisms
     const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
     
@@ -136,8 +154,24 @@ export class EvolutionSystem extends System {
     // Calculate fitness stats
     this.calculateStats(organismEntities);
     
-    // Select top 50% to reproduce
-    const survivors = organismEntities.slice(0, Math.floor(organismEntities.length / 2));
+    // Early generations: select wider variety to maintain diversity
+    const earlyGenerations = this.generationCount <= 10;
+    const selectionRatio = earlyGenerations ? 0.7 : 0.5; // Select 70% in early generations, 50% later
+    
+    // Select top organisms to reproduce
+    const numSurvivors = Math.max(2, Math.floor(organismEntities.length * selectionRatio));
+    const survivors = organismEntities.slice(0, numSurvivors);
+    
+    // Also include a few random organisms for diversity (even low fitness ones)
+    if (organismEntities.length > numSurvivors) {
+      const randomCount = Math.min(3, Math.floor(organismEntities.length * 0.1));
+      for (let i = 0; i < randomCount; i++) {
+        const randomIndex = numSurvivors + Math.floor(Math.random() * (organismEntities.length - numSurvivors));
+        if (randomIndex < organismEntities.length && !survivors.includes(organismEntities[randomIndex])) {
+          survivors.push(organismEntities[randomIndex]);
+        }
+      }
+    }
     
     // Store IDs of all entities to be removed
     const entitiesToRemove = new Set();
@@ -158,26 +192,23 @@ export class EvolutionSystem extends System {
     // Create new generation
     const newGeneration = [];
     
-    // Elite - copy the best organism directly (if there are survivors)
+    // Elite - copy the best organism directly (with tiny mutation rate)
     if (survivors.length > 0) {
       const bestOrganism = survivors[0];
-      newGeneration.push(this.reproduceOrganism(bestOrganism, 0)); // No mutation for the elite
+      // Use a very small mutation rate for the elite (1/5th of normal)
+      newGeneration.push(this.reproduceOrganism(bestOrganism, this.mutationRate * 0.2));
     }
     
-    // Fill the rest with children of survivors
-    while (newGeneration.length < this.populationSize && survivors.length > 0) {
-      const parent = survivors[Math.floor(Math.random() * survivors.length)];
-      newGeneration.push(this.reproduceOrganism(parent, this.mutationRate));
-    }
-    
-    // If we don't have enough survivors, create some random organisms
+    // Fill the rest with children with significant mutations to explore the solution space
     while (newGeneration.length < this.populationSize) {
-      const pos = new Vector2(
-        Math.random() * CANVAS_WIDTH,
-        Math.random() * CANVAS_HEIGHT
-      );
-      const jointCount = MIN_JOINT_COUNT + Math.floor(Math.random() * (MAX_JOINT_COUNT - MIN_JOINT_COUNT + 1));
-      newGeneration.push(this.entityFactory.createOrganism(pos.x, pos.y, jointCount));
+      // Weighted selection (better organisms have higher chance to reproduce)
+      const parent = this.selectParentWeighted(survivors);
+      
+      // Use higher mutation rate for early generations to explore solution space
+      const adjustedMutationRate = earlyGenerations ? 
+        this.mutationRate * 1.5 : this.mutationRate;
+      
+      newGeneration.push(this.reproduceOrganism(parent, adjustedMutationRate));
     }
     
     // Now remove old entities
@@ -198,6 +229,41 @@ export class EvolutionSystem extends System {
   }
 
   /**
+   * Select a parent using weighted probability based on fitness
+   * @param {Entity[]} organisms - The available parent organisms
+   * @returns {Entity} - The selected parent organism
+   */
+  selectParentWeighted(organisms) {
+    // Calculate total fitness
+    let totalFitness = 0;
+    for (const organism of organisms) {
+      const fitness = organism.getComponent(FitnessComponent).fitness;
+      totalFitness += Math.max(0.1, fitness); // Ensure even zero-fitness organisms have a chance
+    }
+    
+    // If all organisms have zero fitness, select randomly
+    if (totalFitness <= 0) {
+      return organisms[Math.floor(Math.random() * organisms.length)];
+    }
+    
+    // Select based on fitness proportion
+    let selectionPoint = Math.random() * totalFitness;
+    let runningTotal = 0;
+    
+    for (const organism of organisms) {
+      const fitness = Math.max(0.1, organism.getComponent(FitnessComponent).fitness);
+      runningTotal += fitness;
+      
+      if (runningTotal >= selectionPoint) {
+        return organism;
+      }
+    }
+    
+    // Fallback (should rarely happen)
+    return organisms[organisms.length - 1];
+  }
+
+  /**
    * Create a child organism from a parent with possible mutations
    * @param {Entity} organismEntity - The parent organism entity
    * @param {number} mutationRate - Rate of genetic mutation
@@ -213,6 +279,10 @@ export class EvolutionSystem extends System {
       position.y + (Math.random() * 40 - 20)
     );
     
+    // Constrain position to canvas bounds
+    childPos.x = Math.max(10, Math.min(CANVAS_WIDTH - 10, childPos.x));
+    childPos.y = Math.max(10, Math.min(CANVAS_HEIGHT - 10, childPos.y));
+    
     // Mutate genes
     const childGenetics = genetics.mutate(mutationRate);
     
@@ -220,7 +290,11 @@ export class EvolutionSystem extends System {
     const organism = organismEntity.getComponent(OrganismComponent);
     let childJointCount = organism.jointIds.length;
     
-    if (Math.random() < 0.1) {
+    // More chance of joint count mutation in early generations
+    const jointMutationChance = this.generationCount <= 5 ? 0.2 : 0.1;
+    
+    if (Math.random() < jointMutationChance) {
+      // Add or remove 1-2 joints
       childJointCount += Math.floor(Math.random() * 3) - 1;
       childJointCount = Math.max(MIN_JOINT_COUNT, Math.min(MAX_JOINT_COUNT, childJointCount));
     }

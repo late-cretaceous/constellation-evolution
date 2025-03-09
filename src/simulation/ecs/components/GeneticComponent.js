@@ -7,22 +7,34 @@ import { Component } from '../Component';
 export class GeneticComponent extends Component {
   /**
    * Create a new genetic component
-   * @param {number} sensorDistance - Distance at which organism can sense food
+   * @param {number} sensorDistance - Distance at which organism can sense food (fixed for all organisms)
    * @param {number} moveThreshold - Threshold for movement decision
    * @param {number} anchorThreshold - Threshold for anchoring decision
    * @param {number} anchorRatio - Portion of joints that should be anchored
+   * @param {number} movementMagnitude - Magnitude of movement impulses
+   * @param {number} movementFrequency - Frequency of movement pattern changes
+   * @param {number} movementBias - Directional bias in movement (0-1 = random, >1 = food-seeking)
+   * @param {number} rotationalForce - Strength of rotational movement
    */
   constructor(
-    sensorDistance = 150, // Significantly increased from 120 for better food detection
-    moveThreshold = 0.8,  // Significantly increased from 0.65 to encourage more movement
-    anchorThreshold = 0.1, // Decreased from 0.15 to anchor less frequently
-    anchorRatio = 0.15     // Decreased from 0.25 to have fewer anchors, more movement
+    sensorDistance = 150,     // Fixed food sensing distance (same for all organisms)
+    moveThreshold = 0.65,     // Standard movement threshold
+    anchorThreshold = 0.2,    // Standard anchoring threshold
+    anchorRatio = 0.2,        // Standard anchor ratio
+    movementMagnitude = 2.0,  // Initially high for random movement
+    movementFrequency = 0.5,  // Medium oscillation frequency
+    movementBias = 0.1,       // Very low initial bias toward food (mostly random)
+    rotationalForce = 1.0     // Medium rotational force
   ) {
     super();
     this.sensorDistance = sensorDistance;
     this.moveThreshold = moveThreshold;
     this.anchorThreshold = anchorThreshold;
     this.anchorRatio = anchorRatio;
+    this.movementMagnitude = movementMagnitude;
+    this.movementFrequency = movementFrequency;
+    this.movementBias = movementBias;
+    this.rotationalForce = rotationalForce;
   }
 
   /**
@@ -31,19 +43,27 @@ export class GeneticComponent extends Component {
    * @returns {GeneticComponent} - A new genetic component with mutations
    */
   mutate(rate) {
-    // Apply more significant mutations for greater variation
+    // Apply mutations to movement-related parameters
     const newGeneticComponent = new GeneticComponent(
-      this.sensorDistance + (Math.random() * 2 - 1) * rate * 70,   // Increased mutation range
-      this.moveThreshold + (Math.random() * 2 - 1) * rate * 0.4,   // Increased mutation range
-      this.anchorThreshold + (Math.random() * 2 - 1) * rate * 0.3, // Same mutation range
-      this.anchorRatio + (Math.random() * 2 - 1) * rate * 0.25     // Increased mutation range
+      this.sensorDistance,    // Keep sensor distance constant
+      this.moveThreshold + (Math.random() * 2 - 1) * rate * 0.3,
+      this.anchorThreshold + (Math.random() * 2 - 1) * rate * 0.2,
+      this.anchorRatio + (Math.random() * 2 - 1) * rate * 0.2,
+      this.movementMagnitude + (Math.random() * 2 - 1) * rate * 1.0,
+      this.movementFrequency + (Math.random() * 2 - 1) * rate * 0.4,
+      this.movementBias + (Math.random() * 2 - 1) * rate * 0.3,
+      this.rotationalForce + (Math.random() * 2 - 1) * rate * 0.5
     );
     
-    // Allow wider ranges for parameters to evolve more diverse strategies
-    newGeneticComponent.sensorDistance = Math.max(80, Math.min(250, newGeneticComponent.sensorDistance));
-    newGeneticComponent.moveThreshold = Math.max(0.4, Math.min(0.95, newGeneticComponent.moveThreshold));
-    newGeneticComponent.anchorThreshold = Math.max(0.05, Math.min(0.25, newGeneticComponent.anchorThreshold));
-    newGeneticComponent.anchorRatio = Math.max(0.05, Math.min(0.4, newGeneticComponent.anchorRatio));
+    // Define acceptable ranges for the parameters
+    // sensorDistance is fixed and not mutated
+    newGeneticComponent.moveThreshold = Math.max(0.3, Math.min(0.95, newGeneticComponent.moveThreshold));
+    newGeneticComponent.anchorThreshold = Math.max(0.05, Math.min(0.4, newGeneticComponent.anchorThreshold));
+    newGeneticComponent.anchorRatio = Math.max(0.05, Math.min(0.5, newGeneticComponent.anchorRatio));
+    newGeneticComponent.movementMagnitude = Math.max(0.1, Math.min(4.0, newGeneticComponent.movementMagnitude));
+    newGeneticComponent.movementFrequency = Math.max(0.1, Math.min(2.0, newGeneticComponent.movementFrequency));
+    newGeneticComponent.movementBias = Math.max(0.0, Math.min(3.0, newGeneticComponent.movementBias));
+    newGeneticComponent.rotationalForce = Math.max(0.1, Math.min(3.0, newGeneticComponent.rotationalForce));
     
     return newGeneticComponent;
   }
