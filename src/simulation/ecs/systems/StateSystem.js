@@ -6,6 +6,7 @@ import { PositionComponent } from '../components/PositionComponent';
 import { GeneticComponent } from '../components/GeneticComponent';
 import { PhysicsComponent } from '../components/PhysicsComponent';
 import { FoodComponent } from '../components/FoodComponent';
+import { Vector2 } from '../utils/Vector2';
 
 /**
  * System that determines the state of joints (anchored or moving)
@@ -79,31 +80,52 @@ export class StateSystem extends System {
           // Very close to food - anchor
           joint.isAnchored = true;
         } else if (normalizedDistance < genetics.moveThreshold) {
-          // Moderately close - move toward food, but ensure we maintain minimum anchors
-          if (currentAnchorRatio < genetics.anchorRatio && Math.random() < 0.7) {
-            joint.isAnchored = true; // Become an anchor to maintain ratio
+          // Moderately close - more dynamic anchor decisions
+          if (currentAnchorRatio < genetics.anchorRatio * 0.8 && Math.random() < 0.6) {
+            joint.isAnchored = true; // Become an anchor to maintain ratio, but less frequently
           } else {
             joint.isAnchored = false;
             
-            // Add force toward food
+            // Add stronger force toward food
+            if (jointEntity.hasComponent(PhysicsComponent)) {
+              const physics = jointEntity.getComponent(PhysicsComponent);
+              const directionToFood = closestFoodPosition.subtract(position.position).normalize();
+              physics.force = physics.force.add(directionToFood.multiply(0.3)); // Increased from 0.1
+            }
+          }
+        } else {
+          // Far from food but still in sensor range
+          // Encourage more movement
+          if (Math.random() < 0.3 && currentAnchorRatio < genetics.anchorRatio) {
+            joint.isAnchored = true;
+          } else {
+            joint.isAnchored = false;
+            
+            // Add slight force toward food even when far
             if (jointEntity.hasComponent(PhysicsComponent)) {
               const physics = jointEntity.getComponent(PhysicsComponent);
               const directionToFood = closestFoodPosition.subtract(position.position).normalize();
               physics.force = physics.force.add(directionToFood.multiply(0.1));
             }
           }
-        } else {
-          // Far from food but still in sensor range
-          // Make anchor decision based on current ratio
-          joint.isAnchored = (currentAnchorRatio < genetics.anchorRatio);
         }
       } else {
-        // No food in range - default behavior
-        // Some joints should still be anchored based on genetics
-        if (currentAnchorRatio < genetics.anchorRatio) {
+        // No food in range - default behavior with some randomness
+        if (currentAnchorRatio < genetics.anchorRatio && Math.random() < 0.7) {
           joint.isAnchored = true;
         } else {
           joint.isAnchored = false;
+          
+          // Add small random force for exploration
+          if (jointEntity.hasComponent(PhysicsComponent)) {
+            const physics = jointEntity.getComponent(PhysicsComponent);
+            physics.force = physics.force.add(
+              new Vector2(
+                (Math.random() * 2 - 1) * 0.05,
+                (Math.random() * 2 - 1) * 0.05
+              )
+            );
+          }
         }
       }
     }

@@ -43,6 +43,18 @@ export class JointConnectionSystem extends System {
         }
       }
       
+      // If no anchors, randomly anchor one joint (gives stability)
+      if (!hasAnchor && organism.jointIds.length > 0) {
+        const randomIndex = Math.floor(Math.random() * organism.jointIds.length);
+        const randomJointId = organism.jointIds[randomIndex];
+        const jointEntity = this.world.getEntity(randomJointId);
+        if (jointEntity) {
+          const joint = jointEntity.getComponent(JointComponent);
+          joint.isAnchored = true;
+          hasAnchor = true;
+        }
+      }
+      
       // Apply spring forces between connected joints
       for (const jointId of organism.jointIds) {
         const jointEntity = this.world.getEntity(jointId);
@@ -53,6 +65,15 @@ export class JointConnectionSystem extends System {
         
         const jointPosition = jointEntity.getComponent(PositionComponent);
         const jointPhysics = jointEntity.getComponent(PhysicsComponent);
+        const jointVelocity = jointEntity.getComponent(VelocityComponent);
+        
+        // Add base movement force to each joint
+        jointPhysics.force = jointPhysics.force.add(
+          new Vector2(
+            (Math.random() * 2 - 1) * 0.5, // Increased from 0.02
+            (Math.random() * 2 - 1) * 0.5
+          )
+        );
         
         for (const connectedJointId of jointComponent.connections) {
           const connectedEntity = this.world.getEntity(connectedJointId);
@@ -70,24 +91,33 @@ export class JointConnectionSystem extends System {
           const distance = Math.max(0.1, jointPosition.position.distanceTo(connectedPosition.position));
           const stretch = distance - restLength;
           
-          // Hooke's law F = kx
-          let springForce = direction.normalize().multiply(stretch * jointPhysics.stiffness);
+          // Apply stronger spring force (Hooke's law F = kx)
+          let springForce = direction.normalize().multiply(stretch * jointPhysics.stiffness * 1.5);
           
           // If the connected joint is anchored, apply stronger force
           if (connectedJoint.isAnchored) {
-            springForce = springForce.multiply(3);
+            springForce = springForce.multiply(2.0); // Increased from 1.5
           }
           
           // Apply the force
           jointPhysics.force = jointPhysics.force.add(springForce);
         }
         
-        // If the organism has no anchors, greatly reduce movement ability
+        // If the organism has no anchors, allow some movement to encourage finding stability
         if (!hasAnchor) {
-          jointPhysics.force = jointPhysics.force.multiply(0.1);
-          const velocity = jointEntity.getComponent(VelocityComponent);
-          if (velocity) {
-            velocity.velocity = velocity.velocity.multiply(0.8); // Extra damping when not anchored
+          jointPhysics.force = jointPhysics.force.multiply(0.8); // Increased from 0.5
+          
+          // Add random directional force for movement
+          jointPhysics.force = jointPhysics.force.add(
+            new Vector2(
+              (Math.random() * 2 - 1),
+              (Math.random() * 2 - 1)
+            ).normalize().multiply(0.5)
+          );
+          
+          // Apply less damping
+          if (jointVelocity) {
+            jointVelocity.velocity = jointVelocity.velocity.multiply(0.95); // Less damping (was 0.9)
           }
         }
       }

@@ -13,10 +13,10 @@ export class GeneticComponent extends Component {
    * @param {number} anchorRatio - Portion of joints that should be anchored
    */
   constructor(
-    sensorDistance = 100, 
-    moveThreshold = 0.5, 
-    anchorThreshold = 0.2, 
-    anchorRatio = 0.3
+    sensorDistance = 120, // Increased from 100 for better food detection
+    moveThreshold = 0.65, // Increased from 0.5 to encourage more movement
+    anchorThreshold = 0.15, // Decreased from 0.2 to anchor less frequently
+    anchorRatio = 0.25     // Decreased from 0.3 to have fewer anchors
   ) {
     super();
     this.sensorDistance = sensorDistance;
@@ -39,10 +39,10 @@ export class GeneticComponent extends Component {
     );
     
     // Clamp values to reasonable ranges
-    newGeneticComponent.sensorDistance = Math.max(10, Math.min(200, newGeneticComponent.sensorDistance));
-    newGeneticComponent.moveThreshold = Math.max(0.1, Math.min(0.9, newGeneticComponent.moveThreshold));
-    newGeneticComponent.anchorThreshold = Math.max(0.1, Math.min(0.9, newGeneticComponent.anchorThreshold));
-    newGeneticComponent.anchorRatio = Math.max(0.1, Math.min(0.7, newGeneticComponent.anchorRatio));
+    newGeneticComponent.sensorDistance = Math.max(50, Math.min(200, newGeneticComponent.sensorDistance));
+    newGeneticComponent.moveThreshold = Math.max(0.3, Math.min(0.9, newGeneticComponent.moveThreshold));
+    newGeneticComponent.anchorThreshold = Math.max(0.05, Math.min(0.3, newGeneticComponent.anchorThreshold));
+    newGeneticComponent.anchorRatio = Math.max(0.1, Math.min(0.5, newGeneticComponent.anchorRatio));
     
     return newGeneticComponent;
   }
