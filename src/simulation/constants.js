@@ -19,8 +19,8 @@ export const MAX_JOINT_COUNT = 8;
 export const DEFAULT_JOINT_COUNT = 5;
 export const JOINT_RADIUS = 5;
 export const JOINT_REST_LENGTH = 30;
-export const JOINT_STIFFNESS = 0.2;  // Significantly increased from 0.07 for stronger forces
-export const JOINT_DAMPING = 0.96;   // Increased from 0.92 for even less damping
+export const JOINT_STIFFNESS = 0.5;  // Significantly increased from 0.2 for stronger forces
+export const JOINT_DAMPING = 0.98;   // Increased from 0.96 for even less damping
 
 // Food settings
 export const FOOD_RADIUS = 4;
