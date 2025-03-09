@@ -112,6 +112,7 @@ export function useECSSimulation(canvasRef) {
     let animationFrameId;
     let lastTime = 0;
     let timer = 0;
+    let frameCount = 0; // Add frame counter
     
     // Main simulation loop
     const simulate = (currentTime) => {
@@ -125,6 +126,7 @@ export function useECSSimulation(canvasRef) {
         evolutionSystem.setParams(foodAmountRef.current, populationRef.current, mutationRateRef.current);
         evolutionSystem.initializeGeneration();
         timer = 0;
+        frameCount = 0;
         setGeneration(0);
         setStats({
           bestFitness: 0,
@@ -146,15 +148,19 @@ export function useECSSimulation(canvasRef) {
       const updatedSpeed = speedRef.current * deltaTime;
       world.update(updatedSpeed);
       
-      // Increment timer
-      timer += updatedSpeed;
+      // Increment timer - multiply by a factor to make it count up faster
+      // This fixes the timing issue that was preventing generations from advancing
+      timer += updatedSpeed * 20; // Increase the rate of timer accumulation
+      frameCount++; // Increment frame counter
       
-      // Check for generation end
-      if (timer >= GENERATION_TIME || foodEntities.length === 0) {
+      // Check for generation end - also add a frame-based condition
+      // This ensures generations will end even if deltaTime is very small
+      if (timer >= GENERATION_TIME || foodEntities.length === 0 || frameCount >= 500) {
         const nextGenStats = evolutionSystem.createNextGeneration();
         setStats(nextGenStats);
         setGeneration(prev => prev + 1);
         timer = 0;
+        frameCount = 0;
       }
       
       // Loop animation if running
