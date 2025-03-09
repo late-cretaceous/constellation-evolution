@@ -39,6 +39,8 @@ export class EvolutionSystem extends System {
       avgJoints: 0
     };
     this.generationCount = 0;
+    // Track organism positions to avoid clustering
+    this.spawnPositions = new Set();
   }
 
   /**
@@ -69,13 +71,12 @@ initializeGeneration() {
   // Clear existing entities
   this.world.clear();
   this.generationCount = 0;
+  this.spawnPositions.clear();
   
   // Create initial organisms with extremely diverse genetics
   for (let i = 0; i < this.populationSize; i++) {
-    const pos = new Vector2(
-      Math.random() * CANVAS_WIDTH,
-      Math.random() * CANVAS_HEIGHT
-    );
+    // Create evenly distributed positions across the canvas
+    const pos = this.getDistributedPosition();
     
     // Completely random joint count - no bias
     const jointCount = MIN_JOINT_COUNT + Math.floor(Math.random() * (MAX_JOINT_COUNT - MIN_JOINT_COUNT + 1));
@@ -170,6 +171,7 @@ initializeGeneration() {
    */
   createNextGeneration() {
     this.generationCount++;
+    this.spawnPositions.clear();
     
     // Get all organisms
     const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
@@ -301,13 +303,41 @@ initializeGeneration() {
    */
   reproduceOrganism(organismEntity, mutationRate) {
     const genetics = organismEntity.getComponent(GeneticComponent);
-    const position = this.getOrganismPosition(organismEntity);
     
-    // Create a slightly offset position for the child
-    const childPos = new Vector2(
-      position.x + (Math.random() * 40 - 20),
-      position.y + (Math.random() * 40 - 20)
-    );
+    // Choose between different spawn strategies
+    let childPos;
+    const spawnStrategy = Math.random();
+    
+    if (spawnStrategy < 0.4) {
+      // 40% chance: Completely random position across the entire canvas
+      childPos = new Vector2(
+        Math.random() * CANVAS_WIDTH,
+        Math.random() * CANVAS_HEIGHT
+      );
+    } else if (spawnStrategy < 0.7) {
+      // 30% chance: Position in a different quadrant than parent
+      const position = this.getOrganismPosition(organismEntity);
+      
+      // Determine parent's quadrant
+      const parentQuadrantX = position.x < CANVAS_WIDTH / 2 ? 0 : 1;
+      const parentQuadrantY = position.y < CANVAS_HEIGHT / 2 ? 0 : 1;
+      
+      // Choose a different quadrant
+      let childQuadrantX, childQuadrantY;
+      do {
+        childQuadrantX = Math.floor(Math.random() * 2);
+        childQuadrantY = Math.floor(Math.random() * 2);
+      } while (childQuadrantX === parentQuadrantX && childQuadrantY === parentQuadrantY);
+      
+      // Calculate position in the chosen quadrant
+      childPos = new Vector2(
+        childQuadrantX * (CANVAS_WIDTH / 2) + Math.random() * (CANVAS_WIDTH / 2),
+        childQuadrantY * (CANVAS_HEIGHT / 2) + Math.random() * (CANVAS_HEIGHT / 2)
+      );
+    } else {
+      // 30% chance: Position distributed across a grid cell
+      childPos = this.getDistributedPosition();
+    }
     
     // Constrain position to canvas bounds
     childPos.x = Math.max(10, Math.min(CANVAS_WIDTH - 10, childPos.x));
@@ -330,6 +360,47 @@ initializeGeneration() {
     }
     
     return this.entityFactory.createOrganism(childPos.x, childPos.y, childJointCount, childGenetics);
+  }
+
+  /**
+   * Get a position that is distributed across the canvas in a grid-like manner
+   * @returns {Vector2} - The distributed position
+   */
+  getDistributedPosition() {
+    // Define a virtual grid for distribution
+    const gridCellsX = 8;  // Divide canvas into 8x5 grid
+    const gridCellsY = 5;
+    const cellWidth = CANVAS_WIDTH / gridCellsX;
+    const cellHeight = CANVAS_HEIGHT / gridCellsY;
+    
+    // First try to find empty cells
+    let attempts = 0;
+    const maxAttempts = 15;
+    
+    while (attempts < maxAttempts) {
+      const gridX = Math.floor(Math.random() * gridCellsX);
+      const gridY = Math.floor(Math.random() * gridCellsY);
+      
+      // Add some randomness within the cell
+      const x = gridX * cellWidth + Math.random() * cellWidth;
+      const y = gridY * cellHeight + Math.random() * cellHeight;
+      
+      // Check for minimum distance from existing positions
+      const posKey = `${Math.floor(x / 50)},${Math.floor(y / 50)}`;
+      
+      if (!this.spawnPositions.has(posKey)) {
+        this.spawnPositions.add(posKey);
+        return new Vector2(x, y);
+      }
+      
+      attempts++;
+    }
+    
+    // If we couldn't find an empty cell after max attempts, just return random position
+    return new Vector2(
+      Math.random() * CANVAS_WIDTH,
+      Math.random() * CANVAS_HEIGHT
+    );
   }
 
   /**
