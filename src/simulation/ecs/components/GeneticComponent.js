@@ -26,7 +26,7 @@ export class GeneticComponent extends Component {
       // Default: Create random patterns
       this.jointPatterns = this.createRandomPatterns(3);  // 3 different joint patterns
       this.limbPatterns = this.createRandomPatterns(2);   // 2 different limb patterns
-      this.patternSpeed = 1.0 + Math.random() * 1.5;     // Increased pattern cycling speed (1.0-2.5)
+      this.patternSpeed = 0.2 + Math.random() * 3.8;     // Wide range of speeds (0.2-4.0)
       this.bodyPlanSeed = Math.random();                 // Seed for body plan generation
     }
   }
@@ -110,8 +110,8 @@ export class GeneticComponent extends Component {
     }
     
     // Mutate pattern speed
-    let newPatternSpeed = this.patternSpeed + (Math.random() * 2 - 1) * rate;
-    newPatternSpeed = Math.max(0.2, Math.min(2.0, newPatternSpeed)); // Clamp between 0.2-2.0
+    let newPatternSpeed = this.patternSpeed + (Math.random() * 2 - 1) * rate * 2.0;
+    newPatternSpeed = Math.max(0.2, Math.min(4.0, newPatternSpeed)); // Clamp between 0.2-4.0
     
     // Mutate body plan seed (small changes)
     let newBodyPlanSeed = this.bodyPlanSeed + (Math.random() * 2 - 1) * rate * 0.2;

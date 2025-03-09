@@ -70,7 +70,7 @@ export class EvolutionSystem extends System {
     this.world.clear();
     this.generationCount = 0;
     
-    // Create initial organisms with random genetics
+    // Create initial organisms with random positions
     for (let i = 0; i < this.populationSize; i++) {
       const pos = new Vector2(
         Math.random() * CANVAS_WIDTH,
@@ -237,17 +237,12 @@ export class EvolutionSystem extends System {
    */
   reproduceOrganism(organismEntity, mutationRate) {
     const genetics = organismEntity.getComponent(GeneticComponent);
-    const position = this.getOrganismPosition(organismEntity);
     
-    // Create a slightly offset position for the child
-    const childPos = new Vector2(
-      position.x + (Math.random() * 40 - 20),
-      position.y + (Math.random() * 40 - 20)
+    // Random position anywhere on the canvas
+    const pos = new Vector2(
+      Math.random() * CANVAS_WIDTH,
+      Math.random() * CANVAS_HEIGHT
     );
-    
-    // Constrain position to canvas bounds
-    childPos.x = Math.max(10, Math.min(CANVAS_WIDTH - 10, childPos.x));
-    childPos.y = Math.max(10, Math.min(CANVAS_HEIGHT - 10, childPos.y));
     
     // Mutate genes
     const childGenetics = genetics.mutate(mutationRate);
@@ -263,7 +258,7 @@ export class EvolutionSystem extends System {
       childJointCount = Math.max(MIN_JOINT_COUNT, Math.min(MAX_JOINT_COUNT, childJointCount));
     }
     
-    return this.entityFactory.createOrganism(childPos.x, childPos.y, childJointCount, childGenetics);
+    return this.entityFactory.createOrganism(pos.x, pos.y, childJointCount, childGenetics);
   }
 
   /**

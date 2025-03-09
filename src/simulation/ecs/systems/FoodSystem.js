@@ -44,8 +44,8 @@ export class FoodSystem extends System {
       const fitness = organismEntity.getComponent(FitnessComponent);
       
       // Award a small survival bonus over time
-      if (this.accumulatedTime > 1.0) { // Every second
-        fitness.fitness += 0.1; // Small survival bonus
+      if (this.accumulatedTime > 5.0) { // Every 5 seconds (reduced frequency)
+        fitness.fitness += 0.5; // Small survival bonus
         this.accumulatedTime = 0;
       }
       

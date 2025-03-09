@@ -111,7 +111,7 @@ export function useECSSimulation(canvasRef) {
     
     let animationFrameId;
     let lastTime = performance.now();
-    let timer = 0;
+    let generationStartTime = performance.now() / 1000; // Track actual generation start time
     let frameCount = 0;
     let generationEndCounter = 0; // Counter for generations that seem stuck
     
@@ -126,7 +126,7 @@ export function useECSSimulation(canvasRef) {
         // Update evolution system parameters
         evolutionSystem.setParams(foodAmountRef.current, populationRef.current, mutationRateRef.current);
         evolutionSystem.initializeGeneration();
-        timer = 0;
+        generationStartTime = performance.now() / 1000;
         frameCount = 0;
         generationEndCounter = 0;
         setGeneration(0);
@@ -150,29 +150,31 @@ export function useECSSimulation(canvasRef) {
       const updatedSpeed = speedRef.current * deltaTime;
       world.update(updatedSpeed);
       
-      // Increment timer and frame counter
-      timer += updatedSpeed * 20; // Reduced to allow longer generations
+      // Increment frame counter
       frameCount++;
       
       // Count frames where nothing happens (no food eaten)
-      if (foodSystemRef.current.foodsEaten === 0 && frameCount > 100) {
+      if (foodSystemRef.current.foodsEaten === 0 && frameCount > 500) {
         generationEndCounter++;
       } else {
         generationEndCounter = 0; // Reset counter if food was eaten
       }
       
-      // Check for generation end conditions
-      let shouldEndGeneration = 
-        timer >= GENERATION_TIME || 
-        foodEntities.length === 0 || 
-        frameCount >= 1500 ||    // Increased to allow more time for movement
-        generationEndCounter >= 300; // Force end after 300 frames of no progress
+      // Check for generation end conditions - use actual elapsed time
+      const currentRealTime = performance.now() / 1000;
+      const elapsedRealTime = currentRealTime - generationStartTime;
       
+      let shouldEndGeneration = 
+        elapsedRealTime >= GENERATION_TIME || // Use constant for generation duration in seconds
+        foodEntities.length === 0 || 
+        frameCount >= 100000 ||  // Extremely high to avoid frame-based termination
+        generationEndCounter >= 1000; // Only used when stuck with no progress
+        
       if (shouldEndGeneration) {
         const nextGenStats = evolutionSystem.createNextGeneration();
         setStats(nextGenStats);
         setGeneration(prev => prev + 1);
-        timer = 0;
+        generationStartTime = performance.now() / 1000;
         frameCount = 0;
         generationEndCounter = 0;
       }
