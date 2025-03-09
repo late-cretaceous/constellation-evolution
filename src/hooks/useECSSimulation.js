@@ -20,6 +20,7 @@ import {
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
+ * Enhanced for more chaotic movement
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
  */
@@ -99,25 +100,26 @@ export function useECSSimulation(canvasRef) {
     renderSystemRef.current = renderSystem;
     foodSystemRef.current = foodSystem;
     
-    // Add systems to world
-    world.addSystem(stateSystem)
-         .addSystem(physicsSystem)
-         .addSystem(jointConnectionSystem)
-         .addSystem(foodSystem)
-         .addSystem(renderSystem);
+    // Add systems to world in specific order for proper processing
+    world.addSystem(stateSystem)         // First determine joint states
+         .addSystem(physicsSystem)       // Then apply physics forces
+         .addSystem(jointConnectionSystem) // Then handle joint connections
+         .addSystem(foodSystem)          // Then check for food consumption
+         .addSystem(renderSystem);       // Finally render everything
     
     // Initialize the first generation
     evolutionSystem.initializeGeneration();
     
     let animationFrameId;
-    let lastTime = 0;
+    let lastTime = performance.now();
     let timer = 0;
-    let frameCount = 0; // Add frame counter
+    let frameCount = 0;
+    let generationEndCounter = 0; // Counter for generations that seem stuck
     
     // Main simulation loop
     const simulate = (currentTime) => {
       // Calculate delta time
-      const deltaTime = (currentTime - lastTime) / 1000;
+      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // Cap at 0.1s to prevent huge jumps
       lastTime = currentTime;
       
       // Check if we need to restart simulation
@@ -127,6 +129,7 @@ export function useECSSimulation(canvasRef) {
         evolutionSystem.initializeGeneration();
         timer = 0;
         frameCount = 0;
+        generationEndCounter = 0;
         setGeneration(0);
         setStats({
           bestFitness: 0,
@@ -138,29 +141,41 @@ export function useECSSimulation(canvasRef) {
         setNeedsRestart(false);
       }
       
-      // Replenish food if needed
+      // Always replenish some food to keep the simulation moving
       const foodEntities = world.getEntitiesWithComponent('FoodComponent');
-      if (foodEntities.length < foodAmountRef.current / 2) {
-        evolutionSystem.replenishFood(Math.floor(foodAmountRef.current / 10));
+      if (foodEntities.length < foodAmountRef.current * 0.8) {
+        evolutionSystem.replenishFood(Math.max(1, Math.floor(foodAmountRef.current * 0.1)));
       }
       
       // Update world with current simulation speed
       const updatedSpeed = speedRef.current * deltaTime;
       world.update(updatedSpeed);
       
-      // Increment timer - multiply by a factor to make it count up faster
-      // This fixes the timing issue that was preventing generations from advancing
-      timer += updatedSpeed * 20; // Increase the rate of timer accumulation
-      frameCount++; // Increment frame counter
+      // Increment timer and frame counter
+      timer += updatedSpeed * 40; // Increased from 20 to 40 for faster generation progression
+      frameCount++;
       
-      // Check for generation end - also add a frame-based condition
-      // This ensures generations will end even if deltaTime is very small
-      if (timer >= GENERATION_TIME || foodEntities.length === 0 || frameCount >= 500) {
+      // Check for generation end conditions
+      const shouldEndGeneration = 
+        timer >= GENERATION_TIME || 
+        foodEntities.length === 0 || 
+        frameCount >= 800 ||     // Increased from 500 to 800 frames
+        generationEndCounter >= 300; // Force end after 300 frames of no progress
+        
+      // Count frames where nothing happens (no food eaten)
+      if (foodSystemRef.current.foodsEaten === 0 && frameCount > 100) {
+        generationEndCounter++;
+      } else {
+        generationEndCounter = 0; // Reset counter if food was eaten
+      }
+      
+      if (shouldEndGeneration) {
         const nextGenStats = evolutionSystem.createNextGeneration();
         setStats(nextGenStats);
         setGeneration(prev => prev + 1);
         timer = 0;
         frameCount = 0;
+        generationEndCounter = 0;
       }
       
       // Loop animation if running

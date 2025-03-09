@@ -1,5 +1,6 @@
 /**
  * Simulation constants and settings
+ * Enhanced for more chaotic movement
  */
 
 // Canvas dimensions
@@ -13,14 +14,14 @@ export const INITIAL_FOOD_AMOUNT = 50;
 export const DEFAULT_MUTATION_RATE = 0.1;
 export const DEFAULT_SIMULATION_SPEED = 1;
 
-// Organism settings
+// Organism settings - updated for more chaotic movement
 export const MIN_JOINT_COUNT = 3;
 export const MAX_JOINT_COUNT = 8;
 export const DEFAULT_JOINT_COUNT = 5;
 export const JOINT_RADIUS = 5;
 export const JOINT_REST_LENGTH = 30;
-export const JOINT_STIFFNESS = 0.5;  // Significantly increased from 0.2 for stronger forces
-export const JOINT_DAMPING = 0.98;   // Increased from 0.96 for even less damping
+export const JOINT_STIFFNESS = 1.5;  // Dramatically increased from 0.5 for much stronger forces
+export const JOINT_DAMPING = 0.99;   // Increased from 0.98 for even less damping (more energy conservation)
 
 // Food settings
 export const FOOD_RADIUS = 4;

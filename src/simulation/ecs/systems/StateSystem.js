@@ -1,16 +1,17 @@
-// src/simulation/ecs/systems/StateSystem.js - Complete replacement
+// src/simulation/ecs/systems/StateSystem.js
 import { System } from '../System';
 import { JointComponent } from '../components/JointComponent';
 import { OrganismComponent } from '../components/OrganismComponent';
 import { PositionComponent } from '../components/PositionComponent';
+import { VelocityComponent } from '../components/VelocityComponent';
 import { GeneticComponent } from '../components/GeneticComponent';
 import { PhysicsComponent } from '../components/PhysicsComponent';
 import { FoodComponent } from '../components/FoodComponent';
 import { Vector2 } from '../utils/Vector2';
 
 /**
- * System that determines joint states with pure randomness
- * No inherent patterns or behaviors - all structure emerges through evolution
+ * System that determines joint states with extreme randomness
+ * Creates wildly unpredictable behavior patterns
  */
 export class StateSystem extends System {
   /**
@@ -21,10 +22,11 @@ export class StateSystem extends System {
     super(world);
     this.stateChangeTimer = {}; // Track timers for state changes by joint ID
     this.simulationTime = 0;
+    this.organismBehaviorModes = new Map(); // Individual behavior mode per organism
   }
 
   /**
-   * Update states of joints with pure randomness
+   * Update states of joints with extreme randomness
    * @param {number} deltaTime - Time elapsed since last update
    */
   update(deltaTime) {
@@ -37,7 +39,33 @@ export class StateSystem extends System {
     // Get all food entities
     const foodEntities = this.world.getEntitiesWithComponent(FoodComponent);
     
-    // For each joint, determine state based on pure randomness
+    // Get all organisms and update their individual behavior modes
+    const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
+    for (const organismEntity of organismEntities) {
+      // Initialize or update organism behavior mode
+      if (!this.organismBehaviorModes.has(organismEntity.id)) {
+        this.organismBehaviorModes.set(organismEntity.id, {
+          mode: Math.floor(Math.random() * 5), // 5 behavior modes
+          timer: Math.random() * 3.0, // Random initial timer
+          // Offset based on ID to prevent synchronization
+          offset: (organismEntity.id % 20) * 0.1
+        });
+      }
+      
+      // Update behavior mode timer
+      const behaviorData = this.organismBehaviorModes.get(organismEntity.id);
+      behaviorData.timer -= deltaTime;
+      
+      // Change behavior mode when timer expires
+      if (behaviorData.timer <= 0) {
+        // Set a new random behavior mode
+        behaviorData.mode = Math.floor(Math.random() * 5);
+        // Set a new random timer with offset to prevent synchronization
+        behaviorData.timer = 1.0 + Math.random() * 3.0 + behaviorData.offset;
+      }
+    }
+    
+    // For each joint, determine state based on its organism's behavior mode
     for (const jointEntity of jointEntities) {
       const joint = jointEntity.getComponent(JointComponent);
       
@@ -45,12 +73,18 @@ export class StateSystem extends System {
       if (this.stateChangeTimer[jointEntity.id]) continue;
       
       const position = jointEntity.getComponent(PositionComponent);
+      const velocity = jointEntity.hasComponent(VelocityComponent) ? 
+                     jointEntity.getComponent(VelocityComponent) : null;
       
       // Get the organism this joint belongs to
       const organismEntity = this.world.getEntity(joint.organismId);
       if (!organismEntity) continue;
       
       const genetics = organismEntity.getComponent(GeneticComponent);
+      
+      // Get this organism's behavior mode
+      const behaviorData = this.organismBehaviorModes.get(organismEntity.id);
+      const behaviorMode = behaviorData ? behaviorData.mode : 0;
       
       // Find the closest food - basic sensing capability
       let closestFoodDistance = Number.MAX_VALUE;
@@ -60,111 +94,150 @@ export class StateSystem extends System {
         const foodPosition = foodEntity.getComponent(PositionComponent);
         const distance = position.position.distanceTo(foodPosition.position);
         
-        // Check if food is within this organism's sensor range (completely random per organism)
-        if (distance < genetics.sensorDistance && distance < closestFoodDistance) {
+        // Much larger sensor range - up to 3x genetic parameter
+        const effectiveSensorDistance = genetics.sensorDistance * (1 + Math.random() * 2);
+        
+        if (distance < effectiveSensorDistance && distance < closestFoodDistance) {
           closestFoodDistance = distance;
           closestFoodPosition = foodPosition.position;
         }
       }
       
-      // Pure random state changes - no inherent patterns at all
-      const randomDecision = Math.random();
+      // Apply organism's individual behavior mode patterns
+      let shouldAnchor = false;
+      let forceMultiplier = 1.0;
+      let stateDuration = 50 + Math.random() * 150; // Very short duration: 50-200ms
       
-      // Each organism has truly random behavior regarding food
-      if (closestFoodPosition && closestFoodDistance < genetics.sensorDistance) {
-        // Organism can sense food, but reaction is completely random
-        // No inherent bias toward "good" behavior - evolution will select what works
-        
-        // Completely random decision to anchor or move
-        const shouldAnchor = randomDecision < (Math.random() * genetics.anchorThreshold);
-        
-        // Random duration of the state change
-        const duration = 50 + Math.random() * 500; // 50-550ms
-        
-        // Apply random force if we have physics
-        if (jointEntity.hasComponent(PhysicsComponent) && !shouldAnchor) {
-          const physics = jointEntity.getComponent(PhysicsComponent);
+      // Add uniqueness to each joint within organism by using joint ID
+      const jointUniquenessFactor = 0.5 + (jointEntity.id % 10) * 0.05;
+      
+      switch (behaviorMode) {
+        case 0: // Extreme chaos - highly random with no pattern
+          // Vary behavior slightly per joint within organism
+          shouldAnchor = Math.random() < 0.3 * jointUniquenessFactor; // Varied chance to anchor
+          forceMultiplier = (1 + Math.random() * 9) * jointUniquenessFactor; // Varied force
+          stateDuration = (10 + Math.random() * 90) * jointUniquenessFactor; // Varied duration
+          break;
           
-          // Direction to food
+        case 1: // Frenetic movement - almost no anchoring, high force
+          // Vary behavior by joint ID to prevent synchronization
+          shouldAnchor = Math.random() < 0.1 * jointUniquenessFactor;
+          forceMultiplier = (3 + Math.random() * 7) * jointUniquenessFactor;
+          stateDuration = (30 + Math.random() * 70) * jointUniquenessFactor;
+          break;
+          
+        case 2: // Staccato - rapid anchor/unanchor cycling
+          // Vary by joint within organism
+          shouldAnchor = Math.random() < 0.5 * jointUniquenessFactor;
+          forceMultiplier = (2 + Math.random() * 5) * jointUniquenessFactor;
+          // Add unique timing based on joint ID
+          stateDuration = (10 + Math.random() * 40) * (0.8 + (jointEntity.id % 5) * 0.1);
+          break;
+          
+        case 3: // Reactivity to food
+          if (closestFoodPosition) {
+            // React to food with varied behavior per joint
+            shouldAnchor = Math.random() < 0.2 * jointUniquenessFactor;
+            forceMultiplier = (5 + Math.random() * 10) * jointUniquenessFactor;
+            // Unique duration per joint
+            stateDuration = (20 + Math.random() * 80) * (0.7 + (jointEntity.id % 10) * 0.05);
+          } else {
+            // No food - mostly anchor, but varied per joint
+            shouldAnchor = Math.random() < 0.7 * jointUniquenessFactor;
+            forceMultiplier = (1 + Math.random() * 3) * jointUniquenessFactor;
+            stateDuration = (50 + Math.random() * 150) * (0.8 + (jointEntity.id % 5) * 0.1);
+          }
+          break;
+          
+        case 4: // Spastic behavior - alternating behavior
+          // Individual behavior per joint
+          shouldAnchor = Math.random() < 0.4 * jointUniquenessFactor;
+          // Different force ranges for different joints
+          if (jointEntity.id % 3 === 0) {
+            forceMultiplier = (1 + Math.random() * 3) * jointUniquenessFactor;
+          } else if (jointEntity.id % 3 === 1) {
+            forceMultiplier = (3 + Math.random() * 5) * jointUniquenessFactor;
+          } else {
+            forceMultiplier = (7 + Math.random() * 8) * jointUniquenessFactor;
+          }
+          // Unique duration based on joint ID
+          stateDuration = (5 + Math.random() * 45) * (0.7 + (jointEntity.id % 20) * 0.02);
+          break;
+          
+        default:
+          // Default behavior if mode is invalid
+          shouldAnchor = Math.random() < 0.5;
+          forceMultiplier = 1.0;
+          stateDuration = 50 + Math.random() * 100;
+          break;
+      }
+      
+      // Individual duration based on joint ID to prevent synchronization
+      stateDuration *= (0.8 + (jointEntity.id % 15) * 0.03);
+      
+      // Add additional randomization in timing
+      if (Math.random() < 0.3) {
+        stateDuration *= 0.5 + Math.random(); // 50-150% of original duration
+      }
+      
+      // Apply random force if we have physics
+      if (jointEntity.hasComponent(PhysicsComponent) && !shouldAnchor) {
+        const physics = jointEntity.getComponent(PhysicsComponent);
+        
+        // Direction choice highly randomized
+        let moveDirection;
+        
+        if (closestFoodPosition && Math.random() < 0.5) {
+          // Direction to/from food
           const directionToFood = closestFoodPosition.subtract(position.position).normalize();
           
-          // Purely random force application - might move toward food, away from it, or randomly
-          // The genetic movementBias parameter determines if there's any tendency to move toward food
-          const foodBias = genetics.movementBias;
-          
-          // Completely random force direction - may or may not be related to food
-          const randomDirection = new Vector2(
+          // 50% chance to move toward food, 50% chance to flee
+          if (Math.random() < 0.5) {
+            moveDirection = directionToFood;
+          } else {
+            moveDirection = directionToFood.multiply(-1);
+          }
+        } else {
+          // Completely random direction
+          moveDirection = new Vector2(
             Math.random() * 2 - 1,
             Math.random() * 2 - 1
           ).normalize();
-          
-          // Mix random direction with food direction based on genetic bias
-          // Negative bias means move away from food
-          // Zero bias means ignore food
-          // Positive bias means move toward food
-          const mixRatio = Math.max(-1, Math.min(1, foodBias));
-          let moveDirection;
-          
-          if (mixRatio > 0) {
-            // Some tendency toward food
-            moveDirection = this.mixVectors(randomDirection, directionToFood, mixRatio);
-          } else if (mixRatio < 0) {
-            // Some tendency away from food
-            moveDirection = this.mixVectors(randomDirection, directionToFood.multiply(-1), -mixRatio);
-          } else {
-            // Pure random movement
-            moveDirection = randomDirection;
-          }
-          
-          // Apply force with random magnitude
-          const forceMagnitude = Math.random() * genetics.movementMagnitude;
-          physics.force = physics.force.add(moveDirection.multiply(forceMagnitude));
         }
         
-        // Change state
-        this.temporaryStateChange(jointEntity, shouldAnchor, duration);
-      } else {
-        // No food in sensor range - pure random behavior
+        // Apply force with random magnitude but more reasonable limits
+        let forceMagnitude;
+        const randValue = Math.random();
         
-        // Completely random anchoring
-        const shouldAnchor = randomDecision < 0.5; // 50% chance either way
-        
-        // Random duration
-        const duration = 100 + Math.random() * 1000; // 100-1100ms
-        
-        // Apply pure noise forces if not anchored
-        if (jointEntity.hasComponent(PhysicsComponent) && !shouldAnchor) {
-          const physics = jointEntity.getComponent(PhysicsComponent);
-          
-          // Pure noise force
-          physics.force = physics.force.add(new Vector2(
-            (Math.random() * 2 - 1) * (Math.random() * genetics.movementMagnitude),
-            (Math.random() * 2 - 1) * (Math.random() * genetics.movementMagnitude)
-          ));
+        if (randValue < 0.6) {
+          // 60% chance: moderate force
+          forceMagnitude = Math.random() * 10 * forceMultiplier;
+        } else if (randValue < 0.9) {
+          // 30% chance: large force
+          forceMagnitude = 10 + Math.random() * 20 * forceMultiplier;
+        } else {
+          // 10% chance: very strong force (but not extreme)
+          forceMagnitude = 30 + Math.random() * 40 * forceMultiplier;
         }
         
-        // Change state
-        this.temporaryStateChange(jointEntity, shouldAnchor, duration);
+        physics.force = physics.force.add(moveDirection.multiply(forceMagnitude));
+        
+        // Occasional instant velocity change (teleport effect)
+        if (velocity && Math.random() < 0.05) { // 5% chance
+          velocity.velocity = new Vector2(
+            (Math.random() * 2 - 1) * 100,
+            (Math.random() * 2 - 1) * 100
+          );
+        }
       }
+      
+      // Change state
+      this.temporaryStateChange(jointEntity, shouldAnchor, stateDuration);
     }
   }
   
   /**
-   * Mix two vectors based on ratio
-   * @param {Vector2} v1 - First vector
-   * @param {Vector2} v2 - Second vector
-   * @param {number} ratio - Mix ratio (0-1)
-   * @returns {Vector2} - Mixed vector
-   */
-  mixVectors(v1, v2, ratio) {
-    return new Vector2(
-      v1.x * (1 - ratio) + v2.x * ratio,
-      v1.y * (1 - ratio) + v2.y * ratio
-    ).normalize();
-  }
-  
-  /**
-   * Change a joint's state temporarily with pure randomness
+   * Change a joint's state temporarily with extreme randomness
    * @param {Entity} jointEntity - The joint entity
    * @param {boolean} anchorState - Whether to anchor the joint
    * @param {number} duration - Duration of the state change in milliseconds
@@ -172,9 +245,14 @@ export class StateSystem extends System {
   temporaryStateChange(jointEntity, anchorState, duration) {
     const joint = jointEntity.getComponent(JointComponent);
     
-    // Completely random chance to simply ignore the state change
-    if (Math.random() < 0.1) { // 10% chance to ignore
+    // Much reduced chance to ignore the state change
+    if (Math.random() < 0.05) { // 5% chance to ignore
       return;
+    }
+    
+    // 10% chance to do the opposite of what was decided
+    if (Math.random() < 0.1) {
+      anchorState = !anchorState;
     }
     
     // Change the state
