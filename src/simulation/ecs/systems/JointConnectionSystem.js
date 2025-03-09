@@ -9,7 +9,8 @@ import { GeneticComponent } from '../components/GeneticComponent';
 import { Vector2 } from '../utils/Vector2';
 
 /**
- * System that handles connections between joints and the forces between them
+ * System that handles connections between joints with muscle-like contractions
+ * Allows for more dynamic and frenetic movement patterns
  */
 export class JointConnectionSystem extends System {
   /**
@@ -18,12 +19,14 @@ export class JointConnectionSystem extends System {
    */
   constructor(world) {
     super(world);
-    this.organismMovementPhase = {}; // Phase for oscillatory movement per organism
     this.lastUpdateTime = performance.now() / 1000;
+    this.musclePhases = new Map(); // Track contraction phase for each connection
+    this.muscleRates = new Map(); // Track contraction rate for each connection
+    this.muscleStrengths = new Map(); // Track contraction strength for each connection
   }
 
   /**
-   * Update joint connections and calculate forces between connected joints
+   * Update joint connections with muscle-like contractions
    * @param {number} deltaTime - Time elapsed since last update
    */
   update(deltaTime) {
@@ -38,52 +41,7 @@ export class JointConnectionSystem extends System {
       const organism = organismEntity.getComponent(OrganismComponent);
       const genetics = organismEntity.getComponent(GeneticComponent);
       
-      // Initialize movement phase if not already done
-      if (!this.organismMovementPhase[organismEntity.id]) {
-        this.organismMovementPhase[organismEntity.id] = Math.random() * Math.PI * 2;
-      }
-      
-      // Update movement phase based on genetic frequency and elapsed time
-      this.organismMovementPhase[organismEntity.id] += 
-        elapsedTime * genetics.movementFrequency * Math.PI;
-      
-      // Calculate oscillatory values for this organism's movement
-      const sinValue = Math.sin(this.organismMovementPhase[organismEntity.id]);
-      const cosValue = Math.cos(this.organismMovementPhase[organismEntity.id]);
-      
-      // Check if the organism has at least one anchored joint
-      let hasAnchor = false;
-      for (const jointId of organism.jointIds) {
-        const jointEntity = this.world.getEntity(jointId);
-        if (!jointEntity) continue;
-        
-        const joint = jointEntity.getComponent(JointComponent);
-        if (joint.isAnchored) {
-          hasAnchor = true;
-          break;
-        }
-      }
-      
-      // If no anchors, randomly anchor one joint (gives stability) - but with less probability
-      if (!hasAnchor && organism.jointIds.length > 0 && Math.random() < 0.5) {
-        const randomIndex = Math.floor(Math.random() * organism.jointIds.length);
-        const randomJointId = organism.jointIds[randomIndex];
-        const jointEntity = this.world.getEntity(randomJointId);
-        if (jointEntity) {
-          const joint = jointEntity.getComponent(JointComponent);
-          joint.isAnchored = true;
-          hasAnchor = true;
-          
-          // Temporary anchor - will release after some time
-          setTimeout(() => {
-            if (jointEntity && jointEntity.hasComponent(JointComponent)) {
-              jointEntity.getComponent(JointComponent).isAnchored = false;
-            }
-          }, Math.random() * 400 + 200); // Random time between 200ms and 600ms
-        }
-      }
-      
-      // Apply spring forces between connected joints
+      // Process each joint
       for (const jointId of organism.jointIds) {
         const jointEntity = this.world.getEntity(jointId);
         if (!jointEntity) continue;
@@ -93,87 +51,120 @@ export class JointConnectionSystem extends System {
         
         const jointPosition = jointEntity.getComponent(PositionComponent);
         const jointPhysics = jointEntity.getComponent(PhysicsComponent);
-        const jointVelocity = jointEntity.getComponent(VelocityComponent);
         
-        // Apply internal locomotion pattern forces based on genetics
-        // This is the key to emergent movement - organisms don't directly sense food,
-        // but develop movement patterns that happen to bring them to food
+        // Add random forces with higher magnitude potential
+        // Some organisms can move MUCH more vigorously
+        if (Math.random() < 0.7) { // 70% chance to apply random force
+          const forceMagnitude = Math.random() * Math.random() * genetics.movementMagnitude * 5.0; // Up to 5x stronger
+          jointPhysics.force = jointPhysics.force.add(new Vector2(
+            (Math.random() * 2 - 1) * forceMagnitude,
+            (Math.random() * 2 - 1) * forceMagnitude
+          ));
+        }
         
-        // Add phase-based movement pattern
-        const phaseForce = new Vector2(
-          sinValue * genetics.movementMagnitude * 0.8,
-          cosValue * genetics.movementMagnitude * 0.6
-        );
-        jointPhysics.force = jointPhysics.force.add(phaseForce);
-        
-        // Add rotational component based on genetics
-        const rotationalForce = genetics.rotationalForce;
-        const rotationVector = new Vector2(
-          -cosValue * rotationalForce,
-          sinValue * rotationalForce
-        );
-        jointPhysics.force = jointPhysics.force.add(rotationVector);
-        
-        // Add small random noise for variation in movement
-        const randomForce = new Vector2(
-          (Math.random() * 2 - 1) * 0.5,
-          (Math.random() * 2 - 1) * 0.5
-        );
-        jointPhysics.force = jointPhysics.force.add(randomForce);
-        
-        // Handle spring forces between joints
+        // Handle muscle-like contractions between joints
         for (const connectedJointId of jointComponent.connections) {
           const connectedEntity = this.world.getEntity(connectedJointId);
           if (!connectedEntity) continue;
           
           const connectedPosition = connectedEntity.getComponent(PositionComponent);
-          const connectedJoint = connectedEntity.getComponent(JointComponent);
           
-          // Get rest length for this connection
-          const restLength = jointComponent.restLengths.get(connectedJointId) || 
-                             jointComponent.defaultRestLength;
+          // Generate a unique ID for this connection
+          const connectionId = jointId < connectedJointId 
+            ? `${jointId}-${connectedJointId}` 
+            : `${connectedJointId}-${jointId}`;
           
-          // Calculate spring force
-          const direction = connectedPosition.position.subtract(jointPosition.position);
-          const distance = Math.max(0.1, jointPosition.position.distanceTo(connectedPosition.position));
-          const stretch = distance - restLength;
-          
-          // Apply spring force (Hooke's law F = kx)
-          let springForce = direction.normalize().multiply(stretch * jointPhysics.stiffness * 2.5);
-          
-          // If the connected joint is anchored, apply stronger force
-          if (connectedJoint.isAnchored) {
-            springForce = springForce.multiply(2.0);
+          // Initialize muscle parameters if they don't exist
+          if (!this.musclePhases.has(connectionId)) {
+            this.musclePhases.set(connectionId, Math.random() * Math.PI * 2);
+            
+            // Some connections change length quickly, others slowly
+            this.muscleRates.set(connectionId, 0.1 + Math.random() * 5.0); // Much wider range of rates
+            
+            // Some connections barely change, others dramatically
+            this.muscleStrengths.set(connectionId, Math.random() * Math.random() * 0.8); // Up to 80% change
           }
           
-          // Apply the spring force
+          // Get base rest length for this connection
+          const baseRestLength = jointComponent.restLengths.get(connectedJointId) || 
+                               jointComponent.defaultRestLength;
+          
+          // Update muscle phase
+          const phase = this.musclePhases.get(connectionId);
+          const rate = this.muscleRates.get(connectionId);
+          this.musclePhases.set(connectionId, phase + elapsedTime * rate);
+          
+          // Calculate muscle contraction factor
+          // Some muscles will contract completely randomly
+          let contractionFactor;
+          
+          // 30% chance of completely random contraction
+          if (Math.random() < 0.3) {
+            contractionFactor = 0.5 + Math.random(); // 50-150% of base length
+          } else {
+            // Otherwise use oscillating contraction (sine wave)
+            const strength = this.muscleStrengths.get(connectionId);
+            contractionFactor = 1.0 + Math.sin(this.musclePhases.get(connectionId)) * strength;
+          }
+          
+          // Calculate dynamic rest length
+          const dynamicRestLength = baseRestLength * contractionFactor;
+          
+          // Calculate spring force with dynamic rest length
+          const direction = connectedPosition.position.subtract(jointPosition.position);
+          const distance = Math.max(0.1, jointPosition.position.distanceTo(connectedPosition.position));
+          const stretch = distance - dynamicRestLength;
+          
+          // Random spring stiffness - higher values for more frenetic movement
+          const randomStiffness = jointPhysics.stiffness * (0.2 + Math.random() * 2.0);
+          
+          // Apply spring force
+          const springForce = direction.normalize().multiply(stretch * randomStiffness);
           jointPhysics.force = jointPhysics.force.add(springForce);
           
-          // Apply perpendicular force for more interesting movement
-          // This creates a torque-like effect making joints rotate around connections
-          const perpStrength = genetics.rotationalForce * 0.6;
-          if (perpStrength > 0) {
+          // 50% chance of adding rotational force
+          if (Math.random() < 0.5) {
             const perpendicular = new Vector2(-direction.y, direction.x).normalize();
+            const perpForce = (Math.random() * 2 - 1) * Math.random() * genetics.rotationalForce * 3.0; // Stronger rotation
             jointPhysics.force = jointPhysics.force.add(
-              perpendicular.multiply(perpStrength * sinValue)
+              perpendicular.multiply(perpForce)
+            );
+          }
+          
+          // Occasionally apply a strong impulse for more dynamic movement
+          // This creates sudden jerks and twitches
+          if (Math.random() < 0.03) { // 3% chance per connection per update
+            const impulseMagnitude = Math.random() * 30.0; // Strong impulse
+            const impulseDirection = new Vector2(
+              Math.random() * 2 - 1,
+              Math.random() * 2 - 1
+            ).normalize();
+            
+            jointPhysics.force = jointPhysics.force.add(
+              impulseDirection.multiply(impulseMagnitude)
             );
           }
         }
-        
-        // If the organism has no anchors, allow more movement
-        if (!hasAnchor) {
-          // Apply less damping for more movement
-          if (jointVelocity) {
-            jointVelocity.velocity = jointVelocity.velocity.multiply(0.98);
+      }
+      
+      // Randomly anchor/un-anchor joints occasionally
+      if (Math.random() < 0.03) { // 3% chance per update per organism
+        const randomJointIndex = Math.floor(Math.random() * organism.jointIds.length);
+        if (randomJointIndex < organism.jointIds.length) {
+          const randomJointId = organism.jointIds[randomJointIndex];
+          const jointEntity = this.world.getEntity(randomJointId);
+          if (jointEntity) {
+            const joint = jointEntity.getComponent(JointComponent);
+            // Flip the anchor state
+            joint.isAnchored = !joint.isAnchored;
+            
+            // Shorter temporary change for more dynamic behavior
+            setTimeout(() => {
+              if (jointEntity && jointEntity.hasComponent(JointComponent)) {
+                jointEntity.getComponent(JointComponent).isAnchored = !joint.isAnchored;
+              }
+            }, 50 + Math.random() * 200); // Much shorter: 50-250ms
           }
-          
-          // Add stronger random force for exploration
-          jointPhysics.force = jointPhysics.force.add(
-            new Vector2(
-              (Math.random() * 2 - 1) * genetics.movementMagnitude * 0.5,
-              (Math.random() * 2 - 1) * genetics.movementMagnitude * 0.5
-            )
-          );
         }
       }
     }

@@ -61,42 +61,72 @@ export class EvolutionSystem extends System {
     this.mutationRate = mutationRate;
   }
 
-  /**
-   * Initialize the first generation of organisms and food
-   */
-  initializeGeneration() {
-    // Clear existing entities
-    this.world.clear();
-    this.generationCount = 0;
+/**
+ * Initialize the first generation of organisms with extremely random parameters
+ * Includes potential for frenetic movement right from the start
+ */
+initializeGeneration() {
+  // Clear existing entities
+  this.world.clear();
+  this.generationCount = 0;
+  
+  // Create initial organisms with extremely diverse genetics
+  for (let i = 0; i < this.populationSize; i++) {
+    const pos = new Vector2(
+      Math.random() * CANVAS_WIDTH,
+      Math.random() * CANVAS_HEIGHT
+    );
     
-    // Create initial organisms with randomized locomotion genetics
-    for (let i = 0; i < this.populationSize; i++) {
-      const pos = new Vector2(
-        Math.random() * CANVAS_WIDTH,
-        Math.random() * CANVAS_HEIGHT
-      );
-      // Randomize starting joint count between MIN_JOINT_COUNT and MAX_JOINT_COUNT
-      const jointCount = MIN_JOINT_COUNT + Math.floor(Math.random() * (MAX_JOINT_COUNT - MIN_JOINT_COUNT + 1));
-      
-      // Create a completely random genetic component for the first generation
-      // All organisms have the same food sensing ability, but different locomotion patterns
-      const genetics = new GeneticComponent(
-        150,                      // All organisms can sense food at the same distance
-        0.5 + Math.random() * 0.4,   // Random moveThreshold (0.5-0.9)
-        0.1 + Math.random() * 0.3,   // Random anchorThreshold (0.1-0.4)
-        0.1 + Math.random() * 0.3,   // Random anchorRatio (0.1-0.4)
-        0.5 + Math.random() * 2.5,   // Random movement magnitude (0.5-3.0)
-        0.2 + Math.random() * 1.3,   // Random movement frequency (0.2-1.5)
-        0.1 + Math.random() * 0.3,   // Very low initial food-seeking bias (mostly random)
-        0.5 + Math.random() * 1.5    // Random rotational force (0.5-2.0)
-      );
-      
-      this.entityFactory.createOrganism(pos.x, pos.y, jointCount, genetics);
+    // Completely random joint count - no bias
+    const jointCount = MIN_JOINT_COUNT + Math.floor(Math.random() * (MAX_JOINT_COUNT - MIN_JOINT_COUNT + 1));
+    
+    // Distribution type for this organism - power law
+    const randomFactor = Math.random();
+    let movementMag, rotationalForce, movementFreq, movementBias;
+    
+    if (randomFactor < 0.7) {
+      // 70% chance: moderate parameters
+      movementMag = Math.random() * 5;
+      rotationalForce = Math.random() * 6 - 3;
+      movementFreq = Math.random() * 3;
+      movementBias = Math.random() * 5 - 2.5;
+    } else if (randomFactor < 0.9) {
+      // 20% chance: high parameters
+      movementMag = 5 + Math.random() * 10;
+      rotationalForce = (Math.random() * 10 - 5) * (Math.random() < 0.5 ? 1 : -1);
+      movementFreq = 3 + Math.random() * 7;
+      movementBias = (Math.random() * 8 - 4) * (Math.random() < 0.5 ? 1 : -1);
+    } else {
+      // 10% chance: extreme parameters - potentially very frenetic movement
+      movementMag = 15 + Math.random() * 15;
+      rotationalForce = (Math.random() * 20 - 10) * (Math.random() < 0.5 ? 1 : -1);
+      movementFreq = 10 + Math.random() * 5;
+      movementBias = (Math.random() * 10 - 5) * (Math.random() < 0.5 ? 1 : -1);
     }
     
-    // Create food
-    this.initializeFood();
+    // Create truly diverse genetic parameters
+    const genetics = new GeneticComponent(
+      // Random sensor distance
+      20 + Math.random() * 300,          // Range: 20-320
+      
+      // Random thresholds
+      Math.random(),                     // Range: 0-1
+      Math.random(),                     // Range: 0-1
+      Math.random(),                     // Range: 0-1
+      
+      // Movement parameters can be extreme
+      movementMag,                      
+      movementFreq,                      
+      movementBias,                     
+      rotationalForce                   
+    );
+    
+    this.entityFactory.createOrganism(pos.x, pos.y, jointCount, genetics);
   }
+  
+  // Create food
+  this.initializeFood();
+}
 
   /**
    * Initialize food for a new generation

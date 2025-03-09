@@ -9,6 +9,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants';
 
 /**
  * System that handles physics calculations and movement
+ * Enhanced to allow much more frenetic and diverse movement
  */
 export class PhysicsSystem extends System {
   /**
@@ -17,16 +18,14 @@ export class PhysicsSystem extends System {
    */
   constructor(world) {
     super(world);
+    this.entityImpulses = new Map(); // Track random impulse timers
   }
 
   /**
-   * Update physics for all entities with position, velocity, and physics components
+   * Update physics with greatly enhanced randomness and potential for energetic movement
    * @param {number} deltaTime - Time elapsed since last update
    */
   update(deltaTime) {
-    // Force a minimum deltaTime to ensure movement
-    const scaledDelta = Math.max(deltaTime, 0.08);
-    
     // Get entities with position, velocity, and physics components
     const entities = this.world.entities.values();
     
@@ -47,59 +46,106 @@ export class PhysicsSystem extends System {
           continue;
         }
         
-        // Add a constant more significant motion for all objects to prevent stagnation
+        // Add random force with potentially much higher magnitude
+        const randForceFactor = Math.random();
+        let randomForceMagnitude;
+        
+        // Power law distribution - most forces are small, but occasional very large forces
+        // This creates the occasional frenetic movement we want
+        if (randForceFactor < 0.8) {
+          // 80% of the time: small to medium force
+          randomForceMagnitude = Math.random() * 1.0;
+        } else if (randForceFactor < 0.95) {
+          // 15% of the time: medium to large force
+          randomForceMagnitude = 1.0 + Math.random() * 3.0; 
+        } else {
+          // 5% of the time: very large force (potential for chaotic movement)
+          randomForceMagnitude = 4.0 + Math.random() * 8.0;
+        }
+        
         physics.force = physics.force.add(new Vector2(
-          (Math.random() * 2 - 1) * 0.8, // Significantly increased from 0.2
-          (Math.random() * 2 - 1) * 0.8
+          (Math.random() * 2 - 1) * randomForceMagnitude,
+          (Math.random() * 2 - 1) * randomForceMagnitude
         ));
+        
+        // Apply occasional sudden impulses for erratic movement
+        if (!this.entityImpulses.has(entity.id)) {
+          // Initialize with random interval
+          this.entityImpulses.set(entity.id, Math.random() * 3.0);
+        }
+        
+        // Update impulse timer
+        let impulseTimer = this.entityImpulses.get(entity.id) - deltaTime;
+        if (impulseTimer <= 0) {
+          // Apply random impulse
+          const impulseMagnitude = 5.0 + Math.random() * 15.0; // Strong impulse
+          const impulseDirection = new Vector2(
+            Math.random() * 2 - 1,
+            Math.random() * 2 - 1
+          ).normalize();
+          
+          velocity.velocity = velocity.velocity.add(
+            impulseDirection.multiply(impulseMagnitude)
+          );
+          
+          // Reset timer with random interval (0.5-5 seconds)
+          impulseTimer = 0.5 + Math.random() * 4.5;
+        }
+        this.entityImpulses.set(entity.id, impulseTimer);
         
         // Apply force based on mass (F = ma)
         const acceleration = physics.force.multiply(1 / physics.mass);
         
-        // Update velocity with acceleration and scaled delta time (much higher multiplier)
-        velocity.velocity = velocity.velocity.add(acceleration.multiply(scaledDelta * 2.5)); 
+        // Update velocity with acceleration
+        velocity.velocity = velocity.velocity.add(acceleration.multiply(deltaTime));
         
-        // Apply less damping (barely any at all) for much more persistent movement
-        velocity.velocity = velocity.velocity.multiply(physics.damping);
+        // Random damping - some objects maintain momentum better than others
+        const randomDamping = Math.random() < 0.7 ? 
+          0.92 + (Math.random() * 0.08) : // 70% chance: 0.92-1.00 (little damping)
+          0.8 + (Math.random() * 0.12);   // 30% chance: 0.8-0.92 (more damping)
         
-        // Ensure minimum velocity (prevents objects from coming to a complete stop)
-        const minSpeed = 0.05; // Increased from 0.01
+        velocity.velocity = velocity.velocity.multiply(randomDamping);
+        
+        // Random velocity disturbance
+        if (Math.random() < 0.05) { // 5% chance
+          velocity.velocity = new Vector2(
+            velocity.velocity.x * (0.5 + Math.random() * 1.5), // 50-150% of current
+            velocity.velocity.y * (0.5 + Math.random() * 1.5)
+          );
+        }
+        
+        // Allow much higher max velocities for more frenetic movement
+        const maxVelocity = Math.random() < 0.95 ? 20.0 : 40.0; // 5% chance of extreme speed
+        
         const currentSpeed = Math.sqrt(
           velocity.velocity.x * velocity.velocity.x + 
           velocity.velocity.y * velocity.velocity.y
         );
         
-        if (currentSpeed < minSpeed && currentSpeed > 0) {
-          const scale = minSpeed / currentSpeed;
-          velocity.velocity = velocity.velocity.multiply(scale);
-        }
-        
-        // Cap maximum velocity to prevent explosion, but allow much higher speeds
-        const maxVelocity = 15.0; // Significantly increased from 8.0
         if (currentSpeed > maxVelocity) {
           const scale = maxVelocity / currentSpeed;
           velocity.velocity = velocity.velocity.multiply(scale);
         }
         
-        // Update position with scaled velocity (significantly increased)
-        position.position = position.position.add(velocity.velocity.multiply(scaledDelta * 2.0));
+        // Update position with velocity
+        position.position = position.position.add(velocity.velocity.multiply(deltaTime));
         
-        // Boundary checks with stronger bounce
+        // Boundary checks with random bounce characteristics
         if (position.position.x < 0) {
           position.position.x = 0;
-          velocity.velocity.x *= -0.95; // Almost no energy loss on bounce
+          velocity.velocity.x *= -(0.5 + Math.random() * 0.7); // 50-120% energy (can gain energy)
         }
         if (position.position.x > CANVAS_WIDTH) {
           position.position.x = CANVAS_WIDTH;
-          velocity.velocity.x *= -0.95;
+          velocity.velocity.x *= -(0.5 + Math.random() * 0.7);
         }
         if (position.position.y < 0) {
           position.position.y = 0;
-          velocity.velocity.y *= -0.95;
+          velocity.velocity.y *= -(0.5 + Math.random() * 0.7);
         }
         if (position.position.y > CANVAS_HEIGHT) {
           position.position.y = CANVAS_HEIGHT;
-          velocity.velocity.y *= -0.95;
+          velocity.velocity.y *= -(0.5 + Math.random() * 0.7);
         }
         
         // Reset force for next update

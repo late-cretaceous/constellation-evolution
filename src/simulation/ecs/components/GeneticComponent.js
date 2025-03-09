@@ -3,28 +3,29 @@ import { Component } from '../Component';
 
 /**
  * Component that stores the genetic information of an organism
+ * Enhanced to allow for much more extreme parameter values
  */
 export class GeneticComponent extends Component {
   /**
-   * Create a new genetic component
-   * @param {number} sensorDistance - Distance at which organism can sense food (fixed for all organisms)
+   * Create a new genetic component with extremely random parameters
+   * @param {number} sensorDistance - Distance at which organism can sense food
    * @param {number} moveThreshold - Threshold for movement decision
    * @param {number} anchorThreshold - Threshold for anchoring decision
    * @param {number} anchorRatio - Portion of joints that should be anchored
    * @param {number} movementMagnitude - Magnitude of movement impulses
    * @param {number} movementFrequency - Frequency of movement pattern changes
-   * @param {number} movementBias - Directional bias in movement (0-1 = random, >1 = food-seeking)
+   * @param {number} movementBias - Directional bias in movement
    * @param {number} rotationalForce - Strength of rotational movement
    */
   constructor(
-    sensorDistance = 150,     // Fixed food sensing distance (same for all organisms)
-    moveThreshold = 0.65,     // Standard movement threshold
-    anchorThreshold = 0.2,    // Standard anchoring threshold
-    anchorRatio = 0.2,        // Standard anchor ratio
-    movementMagnitude = 2.0,  // Initially high for random movement
-    movementFrequency = 0.5,  // Medium oscillation frequency
-    movementBias = 0.1,       // Very low initial bias toward food (mostly random)
-    rotationalForce = 1.0     // Medium rotational force
+    sensorDistance = 150,     // Default sensor distance
+    moveThreshold = 0.5,      // Default value
+    anchorThreshold = 0.5,    // Default value
+    anchorRatio = 0.5,        // Default value
+    movementMagnitude = 1.0,  // Default value
+    movementFrequency = 1.0,  // Default value
+    movementBias = 0.0,       // Default value
+    rotationalForce = 1.0     // Default value
   ) {
     super();
     this.sensorDistance = sensorDistance;
@@ -38,32 +39,65 @@ export class GeneticComponent extends Component {
   }
 
   /**
-   * Create a mutated copy of this genetic component
+   * Create a mutated copy with potentially extreme mutations
    * @param {number} rate - Mutation rate
    * @returns {GeneticComponent} - A new genetic component with mutations
    */
   mutate(rate) {
-    // Apply mutations to movement-related parameters
+    // Power law distribution for mutation magnitude
+    // Most mutations are small, but occasionally there are extreme mutations
+    const getMutationScale = () => {
+      const rand = Math.random();
+      if (rand < 0.7) {
+        // 70% chance: small mutation
+        return rate;
+      } else if (rand < 0.9) {
+        // 20% chance: medium mutation
+        return rate * 3.0;
+      } else {
+        // 10% chance: large mutation
+        return rate * 10.0;
+      }
+    };
+    
+    // Create new component with potential for extreme mutations
     const newGeneticComponent = new GeneticComponent(
-      this.sensorDistance,    // Keep sensor distance constant
-      this.moveThreshold + (Math.random() * 2 - 1) * rate * 0.3,
-      this.anchorThreshold + (Math.random() * 2 - 1) * rate * 0.2,
-      this.anchorRatio + (Math.random() * 2 - 1) * rate * 0.2,
-      this.movementMagnitude + (Math.random() * 2 - 1) * rate * 1.0,
-      this.movementFrequency + (Math.random() * 2 - 1) * rate * 0.4,
-      this.movementBias + (Math.random() * 2 - 1) * rate * 0.3,
-      this.rotationalForce + (Math.random() * 2 - 1) * rate * 0.5
+      // Sensor distance - can change dramatically
+      this.sensorDistance + (Math.random() * 2 - 1) * getMutationScale() * 100,
+      
+      // Thresholds can completely flip
+      this.moveThreshold + (Math.random() * 2 - 1) * getMutationScale(),
+      this.anchorThreshold + (Math.random() * 2 - 1) * getMutationScale(),
+      this.anchorRatio + (Math.random() * 2 - 1) * getMutationScale(),
+      
+      // Movement magnitude can increase dramatically
+      this.movementMagnitude * Math.exp((Math.random() * 2 - 1) * getMutationScale() * 0.5),
+      
+      // Frequency can change dramatically
+      this.movementFrequency * Math.exp((Math.random() * 2 - 1) * getMutationScale() * 0.5),
+      
+      // Bias can completely reverse
+      this.movementBias + (Math.random() * 2 - 1) * getMutationScale() * 3.0,
+      
+      // Rotational force can change dramatically and reverse
+      this.rotationalForce + (Math.random() * 2 - 1) * getMutationScale() * 5.0
     );
     
-    // Define acceptable ranges for the parameters
-    // sensorDistance is fixed and not mutated
-    newGeneticComponent.moveThreshold = Math.max(0.3, Math.min(0.95, newGeneticComponent.moveThreshold));
-    newGeneticComponent.anchorThreshold = Math.max(0.05, Math.min(0.4, newGeneticComponent.anchorThreshold));
-    newGeneticComponent.anchorRatio = Math.max(0.05, Math.min(0.5, newGeneticComponent.anchorRatio));
-    newGeneticComponent.movementMagnitude = Math.max(0.1, Math.min(4.0, newGeneticComponent.movementMagnitude));
-    newGeneticComponent.movementFrequency = Math.max(0.1, Math.min(2.0, newGeneticComponent.movementFrequency));
-    newGeneticComponent.movementBias = Math.max(0.0, Math.min(3.0, newGeneticComponent.movementBias));
-    newGeneticComponent.rotationalForce = Math.max(0.1, Math.min(3.0, newGeneticComponent.rotationalForce));
+    // Wider bounds but still with some limits to prevent breaking the simulation
+    newGeneticComponent.sensorDistance = Math.max(1, Math.min(400, newGeneticComponent.sensorDistance));
+    newGeneticComponent.moveThreshold = Math.max(0, Math.min(1, newGeneticComponent.moveThreshold));
+    newGeneticComponent.anchorThreshold = Math.max(0, Math.min(1, newGeneticComponent.anchorThreshold));
+    newGeneticComponent.anchorRatio = Math.max(0, Math.min(1, newGeneticComponent.anchorRatio));
+    
+    // Much wider bounds for movement parameters
+    newGeneticComponent.movementMagnitude = Math.max(0, Math.min(30.0, newGeneticComponent.movementMagnitude));
+    newGeneticComponent.movementFrequency = Math.max(0, Math.min(15.0, newGeneticComponent.movementFrequency));
+    
+    // Movement bias can be extremely negative (flee) or positive (seek)
+    newGeneticComponent.movementBias = Math.max(-10.0, Math.min(10.0, newGeneticComponent.movementBias));
+    
+    // Rotational force can be extremely negative or positive
+    newGeneticComponent.rotationalForce = Math.max(-20.0, Math.min(20.0, newGeneticComponent.rotationalForce));
     
     return newGeneticComponent;
   }
