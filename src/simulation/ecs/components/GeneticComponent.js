@@ -3,103 +3,161 @@ import { Component } from '../Component';
 
 /**
  * Component that stores the genetic information of an organism
- * Enhanced to allow for much more extreme parameter values
+ * Simplified to represent binary states and patterns
  */
 export class GeneticComponent extends Component {
   /**
-   * Create a new genetic component with extremely random parameters
-   * @param {number} sensorDistance - Distance at which organism can sense food
-   * @param {number} moveThreshold - Threshold for movement decision
-   * @param {number} anchorThreshold - Threshold for anchoring decision
-   * @param {number} anchorRatio - Portion of joints that should be anchored
-   * @param {number} movementMagnitude - Magnitude of movement impulses
-   * @param {number} movementFrequency - Frequency of movement pattern changes
-   * @param {number} movementBias - Directional bias in movement
-   * @param {number} rotationalForce - Strength of rotational movement
+   * Create a new genetic component with simple pattern-based parameters
+   * @param {Object} params - Genetic parameters
+   * @param {Array} params.jointPatterns - Patterns for joint states (0=down, 1=up)
+   * @param {Array} params.limbPatterns - Patterns for limb states (0=contract, 1=extend)
+   * @param {number} params.patternSpeed - Speed of pattern cycling
+   * @param {number} params.bodyPlanSeed - Seed for generating body plan
    */
-  constructor(
-    sensorDistance = 150,     // Default sensor distance
-    moveThreshold = 0.5,      // Default value
-    anchorThreshold = 0.5,    // Default value
-    anchorRatio = 0.5,        // Default value
-    movementMagnitude = 1.0,  // Default value
-    movementFrequency = 1.0,  // Default value
-    movementBias = 0.0,       // Default value
-    rotationalForce = 1.0     // Default value
-  ) {
+  constructor(params = null) {
     super();
-    this.sensorDistance = sensorDistance;
-    this.moveThreshold = moveThreshold;
-    this.anchorThreshold = anchorThreshold;
-    this.anchorRatio = anchorRatio;
-    this.movementMagnitude = movementMagnitude;
-    this.movementFrequency = movementFrequency;
-    this.movementBias = movementBias;
-    this.rotationalForce = rotationalForce;
+    
+    if (params) {
+      this.jointPatterns = params.jointPatterns;
+      this.limbPatterns = params.limbPatterns;
+      this.patternSpeed = params.patternSpeed;
+      this.bodyPlanSeed = params.bodyPlanSeed;
+    } else {
+      // Default: Create random patterns
+      this.jointPatterns = this.createRandomPatterns(3);  // 3 different joint patterns
+      this.limbPatterns = this.createRandomPatterns(2);   // 2 different limb patterns
+      this.patternSpeed = 0.5 + Math.random();           // Pattern cycling speed
+      this.bodyPlanSeed = Math.random();                 // Seed for body plan generation
+    }
   }
 
   /**
-   * Create a mutated copy with potentially extreme mutations
+   * Create random binary patterns for states
+   * @param {number} count - Number of patterns to create
+   * @returns {Array} - Array of binary pattern arrays
+   */
+  createRandomPatterns(count) {
+    const patterns = [];
+    
+    for (let i = 0; i < count; i++) {
+      // Create pattern of length 8-16 steps
+      const patternLength = 8 + Math.floor(Math.random() * 9);
+      const pattern = [];
+      
+      for (let j = 0; j < patternLength; j++) {
+        // Binary state: 0 or 1
+        pattern.push(Math.random() < 0.5 ? 0 : 1);
+      }
+      
+      patterns.push(pattern);
+    }
+    
+    return patterns;
+  }
+
+  /**
+   * Create a mutated copy with small changes to patterns
    * @param {number} rate - Mutation rate
    * @returns {GeneticComponent} - A new genetic component with mutations
    */
   mutate(rate) {
-    // Power law distribution for mutation magnitude
-    // Most mutations are small, but occasionally there are extreme mutations
-    const getMutationScale = () => {
-      const rand = Math.random();
-      if (rand < 0.7) {
-        // 70% chance: small mutation
-        return rate;
-      } else if (rand < 0.9) {
-        // 20% chance: medium mutation
-        return rate * 3.0;
-      } else {
-        // 10% chance: large mutation
-        return rate * 10.0;
+    // Clone patterns
+    const newJointPatterns = this.jointPatterns.map(pattern => [...pattern]);
+    const newLimbPatterns = this.limbPatterns.map(pattern => [...pattern]);
+    
+    // Mutate joint patterns
+    for (let i = 0; i < newJointPatterns.length; i++) {
+      for (let j = 0; j < newJointPatterns[i].length; j++) {
+        // Chance to flip a bit
+        if (Math.random() < rate) {
+          newJointPatterns[i][j] = 1 - newJointPatterns[i][j]; // Flip 0->1 or 1->0
+        }
       }
-    };
-    
-    // Create new component with potential for extreme mutations
-    const newGeneticComponent = new GeneticComponent(
-      // Sensor distance - can change dramatically
-      this.sensorDistance + (Math.random() * 2 - 1) * getMutationScale() * 100,
       
-      // Thresholds can completely flip
-      this.moveThreshold + (Math.random() * 2 - 1) * getMutationScale(),
-      this.anchorThreshold + (Math.random() * 2 - 1) * getMutationScale(),
-      this.anchorRatio + (Math.random() * 2 - 1) * getMutationScale(),
+      // Small chance to add/remove a step in the pattern
+      if (Math.random() < rate * 0.5) {
+        if (Math.random() < 0.5 && newJointPatterns[i].length > 4) {
+          // Remove a random step
+          const removeIndex = Math.floor(Math.random() * newJointPatterns[i].length);
+          newJointPatterns[i].splice(removeIndex, 1);
+        } else {
+          // Add a random step
+          const addIndex = Math.floor(Math.random() * newJointPatterns[i].length);
+          const newValue = Math.random() < 0.5 ? 0 : 1;
+          newJointPatterns[i].splice(addIndex, 0, newValue);
+        }
+      }
+    }
+    
+    // Mutate limb patterns (same as joint patterns)
+    for (let i = 0; i < newLimbPatterns.length; i++) {
+      for (let j = 0; j < newLimbPatterns[i].length; j++) {
+        if (Math.random() < rate) {
+          newLimbPatterns[i][j] = 1 - newLimbPatterns[i][j];
+        }
+      }
       
-      // Movement magnitude can increase dramatically
-      this.movementMagnitude * Math.exp((Math.random() * 2 - 1) * getMutationScale() * 0.5),
-      
-      // Frequency can change dramatically
-      this.movementFrequency * Math.exp((Math.random() * 2 - 1) * getMutationScale() * 0.5),
-      
-      // Bias can completely reverse
-      this.movementBias + (Math.random() * 2 - 1) * getMutationScale() * 3.0,
-      
-      // Rotational force can change dramatically and reverse
-      this.rotationalForce + (Math.random() * 2 - 1) * getMutationScale() * 5.0
-    );
+      if (Math.random() < rate * 0.5) {
+        if (Math.random() < 0.5 && newLimbPatterns[i].length > 4) {
+          const removeIndex = Math.floor(Math.random() * newLimbPatterns[i].length);
+          newLimbPatterns[i].splice(removeIndex, 1);
+        } else {
+          const addIndex = Math.floor(Math.random() * newLimbPatterns[i].length);
+          const newValue = Math.random() < 0.5 ? 0 : 1;
+          newLimbPatterns[i].splice(addIndex, 0, newValue);
+        }
+      }
+    }
     
-    // Wider bounds but still with some limits to prevent breaking the simulation
-    newGeneticComponent.sensorDistance = Math.max(1, Math.min(400, newGeneticComponent.sensorDistance));
-    newGeneticComponent.moveThreshold = Math.max(0, Math.min(1, newGeneticComponent.moveThreshold));
-    newGeneticComponent.anchorThreshold = Math.max(0, Math.min(1, newGeneticComponent.anchorThreshold));
-    newGeneticComponent.anchorRatio = Math.max(0, Math.min(1, newGeneticComponent.anchorRatio));
+    // Mutate pattern speed
+    let newPatternSpeed = this.patternSpeed + (Math.random() * 2 - 1) * rate;
+    newPatternSpeed = Math.max(0.2, Math.min(2.0, newPatternSpeed)); // Clamp between 0.2-2.0
     
-    // Much wider bounds for movement parameters
-    newGeneticComponent.movementMagnitude = Math.max(0, Math.min(30.0, newGeneticComponent.movementMagnitude));
-    newGeneticComponent.movementFrequency = Math.max(0, Math.min(15.0, newGeneticComponent.movementFrequency));
+    // Mutate body plan seed (small changes)
+    let newBodyPlanSeed = this.bodyPlanSeed + (Math.random() * 2 - 1) * rate * 0.2;
+    newBodyPlanSeed = Math.max(0, Math.min(1, newBodyPlanSeed)); // Clamp between 0-1
     
-    // Movement bias can be extremely negative (flee) or positive (seek)
-    newGeneticComponent.movementBias = Math.max(-10.0, Math.min(10.0, newGeneticComponent.movementBias));
+    // Create new component with mutated values
+    return new GeneticComponent({
+      jointPatterns: newJointPatterns,
+      limbPatterns: newLimbPatterns,
+      patternSpeed: newPatternSpeed,
+      bodyPlanSeed: newBodyPlanSeed
+    });
+  }
+  
+  /**
+   * Get a joint state based on the pattern and current time
+   * @param {number} jointIndex - Index of the joint
+   * @param {number} simulationTime - Current simulation time
+   * @returns {number} - Joint state (0=down, 1=up)
+   */
+  getJointState(jointIndex, simulationTime) {
+    // Select a pattern based on joint index
+    const patternIndex = jointIndex % this.jointPatterns.length;
+    const pattern = this.jointPatterns[patternIndex];
     
-    // Rotational force can be extremely negative or positive
-    newGeneticComponent.rotationalForce = Math.max(-20.0, Math.min(20.0, newGeneticComponent.rotationalForce));
+    // Calculate position in pattern based on time and speed
+    const position = Math.floor(simulationTime * this.patternSpeed * 2) % pattern.length;
     
-    return newGeneticComponent;
+    return pattern[position];
+  }
+  
+  /**
+   * Get a limb state based on the pattern and current time
+   * @param {number} limbIndex - Index of the limb
+   * @param {number} simulationTime - Current simulation time
+   * @returns {number} - Limb state (0=contract, 1=extend)
+   */
+  getLimbState(limbIndex, simulationTime) {
+    // Select a pattern based on limb index
+    const patternIndex = limbIndex % this.limbPatterns.length;
+    const pattern = this.limbPatterns[patternIndex];
+    
+    // Calculate position in pattern based on time and speed
+    const position = Math.floor(simulationTime * this.patternSpeed * 2) % pattern.length;
+    
+    return pattern[position];
   }
 }
 

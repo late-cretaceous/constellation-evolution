@@ -9,9 +9,11 @@ import { RenderComponent } from "./components/RenderComponent";
 import { FitnessComponent } from "./components/FitnessComponent";
 import { FoodComponent } from "./components/FoodComponent";
 import { FOOD_RADIUS, JOINT_RADIUS } from "../constants";
+import { Vector2 } from "./utils/Vector2";
 
 /**
  * Factory class to simplify creation of common entities
+ * Updated to use deterministic body plans from genetic seeds
  */
 export class EntityFactory {
   /**
@@ -67,219 +69,174 @@ export class EntityFactory {
   }
 
   /**
-   * Create an organism entity with joints
+   * Create an organism entity with a body plan derived from genetic seed
    * @param {number} x - X position
    * @param {number} y - Y position
    * @param {number} numJoints - Number of joints to create
-   * @param {GeneticComponent} geneticComponent - Optional genetic component to use
+   * @param {GeneticComponent} geneticComponent - Genetic component to use
    * @returns {Entity} - The created organism entity
    */
   createOrganism(x, y, numJoints, geneticComponent = null) {
     const organismEntity = this.world.createEntity();
     const organism = new OrganismComponent();
     organismEntity.addComponent(organism);
-
     organismEntity.addComponent(new FitnessComponent());
 
+    // Use provided genetics or create new
     const genetics = geneticComponent || new GeneticComponent();
     organismEntity.addComponent(genetics);
 
-    // Create joints
-    const jointEntities = [];
-
-    // Create different organism structures based on the number of joints
-    if (numJoints <= 3) {
-      // Triangle structure for small organisms
-      this.createTriangleStructure(
-        x,
-        y,
-        organismEntity,
-        organism,
-        jointEntities
-      );
-    } else if (numJoints <= 5) {
-      // Star structure for medium organisms
-      this.createStarStructure(
-        x,
-        y,
-        organismEntity,
-        organism,
-        jointEntities,
-        numJoints
-      );
-    } else {
-      // Chain + branches structure for larger organisms
-      this.createChainStructure(
-        x,
-        y,
-        organismEntity,
-        organism,
-        jointEntities,
-        numJoints
-      );
-    }
+    // Generate body plan based on genetic seed
+    this.generateBodyPlan(x, y, numJoints, organismEntity, organism, genetics);
 
     return organismEntity;
   }
 
   /**
-   * Create a triangular organism structure
-   * @private
+   * Generate a body plan based on genetic seed
+   * @param {number} x - X position
+   * @param {number} y - Y position
+   * @param {number} numJoints - Number of joints to create
+   * @param {Entity} organismEntity - The organism entity
+   * @param {OrganismComponent} organism - The organism component
+   * @param {GeneticComponent} genetics - The genetic component
    */
-  createTriangleStructure(x, y, organismEntity, organism, jointEntities) {
-    // Create center joint
-    const centerJoint = this.createJoint(x, y, organismEntity.id);
-    organism.jointIds.push(centerJoint.id);
-    jointEntities.push(centerJoint);
-
-    // Create two more joints in a triangle
-    const radius = 25;
-    for (let i = 0; i < 2; i++) {
-      const angle = (i / 2) * Math.PI * 2;
-      const jointX = x + Math.cos(angle) * radius;
-      const jointY = y + Math.sin(angle) * radius;
-
-      const jointEntity = this.createJoint(jointX, jointY, organismEntity.id);
-      organism.jointIds.push(jointEntity.id);
-      jointEntities.push(jointEntity);
+  generateBodyPlan(x, y, numJoints, organismEntity, organism, genetics) {
+    // Use genetic seed to determine body plan type
+    // This creates deterministic body plans for each genetic seed
+    const seed = genetics.bodyPlanSeed;
+    
+    if (seed < 0.33) {
+      this.createRadialBodyPlan(x, y, numJoints, organismEntity, organism);
+    } else if (seed < 0.66) {
+      this.createChainBodyPlan(x, y, numJoints, organismEntity, organism);
+    } else {
+      this.createTreeBodyPlan(x, y, numJoints, organismEntity, organism);
     }
-
-    // Connect joints in a triangle
-    this.connectJoints(jointEntities[0], jointEntities[1]);
-    this.connectJoints(jointEntities[1], jointEntities[2]);
-    this.connectJoints(jointEntities[2], jointEntities[0]);
   }
 
   /**
-   * Create a star-shaped organism structure
+   * Create a radial body plan (joints in a circle around a center)
    * @private
    */
-  createStarStructure(
-    x,
-    y,
-    organismEntity,
-    organism,
-    jointEntities,
-    numJoints
-  ) {
+  createRadialBodyPlan(x, y, numJoints, organismEntity, organism) {
     // Create center joint
     const centerJoint = this.createJoint(x, y, organismEntity.id);
     organism.jointIds.push(centerJoint.id);
-    jointEntities.push(centerJoint);
-
+    
     // Create outer joints in a circle
-    const radius = 25;
+    const radius = 30;
+    const outerJoints = [];
+    
     for (let i = 0; i < numJoints - 1; i++) {
       const angle = (i / (numJoints - 1)) * Math.PI * 2;
       const jointX = x + Math.cos(angle) * radius;
       const jointY = y + Math.sin(angle) * radius;
-
+      
       const jointEntity = this.createJoint(jointX, jointY, organismEntity.id);
       organism.jointIds.push(jointEntity.id);
-      jointEntities.push(jointEntity);
+      outerJoints.push(jointEntity);
     }
-
-    // Connect outer joints to center joint
-    for (let i = 1; i < jointEntities.length; i++) {
-      this.connectJoints(centerJoint, jointEntities[i]);
+    
+    // Connect outer joints to center
+    for (const outerJoint of outerJoints) {
+      this.connectJoints(centerJoint, outerJoint);
     }
-
-    // Connect some outer joints to each other (not all, to avoid rigid structure)
-    for (let i = 1; i < jointEntities.length; i++) {
-      const nextIndex = (i % (jointEntities.length - 1)) + 1;
-      this.connectJoints(jointEntities[i], jointEntities[nextIndex]);
+    
+    // Connect adjacent outer joints
+    for (let i = 0; i < outerJoints.length; i++) {
+      const nextIndex = (i + 1) % outerJoints.length;
+      this.connectJoints(outerJoints[i], outerJoints[nextIndex]);
     }
   }
 
   /**
-   * Create a chain-based organism structure with branches
+   * Create a chain body plan (joints in a line)
    * @private
    */
-  createChainStructure(
-    x,
-    y,
-    organismEntity,
-    organism,
-    jointEntities,
-    numJoints
-  ) {
-    // Create a backbone chain
-    const chainLength = Math.min(5, numJoints - 1);
-    const spacing = 20;
-
-    // Create first joint
-    const firstJoint = this.createJoint(x, y, organismEntity.id);
-    organism.jointIds.push(firstJoint.id);
-    jointEntities.push(firstJoint);
-
-    // Create the chain
-    let prevJoint = firstJoint;
-    for (let i = 0; i < chainLength; i++) {
-      const jointX = x + (i + 1) * spacing;
+  createChainBodyPlan(x, y, numJoints, organismEntity, organism) {
+    const jointEntities = [];
+    const spacing = 25;
+    
+    // Create joints in a line
+    for (let i = 0; i < numJoints; i++) {
+      const jointX = x + (i * spacing);
       const jointY = y;
-
+      
       const jointEntity = this.createJoint(jointX, jointY, organismEntity.id);
       organism.jointIds.push(jointEntity.id);
       jointEntities.push(jointEntity);
-
-      // Connect to previous joint
-      this.connectJoints(prevJoint, jointEntity);
-      prevJoint = jointEntity;
     }
-
-    // Add branches if we have more joints to allocate
-    let remainingJoints = numJoints - jointEntities.length;
-    let branchIndex = 0;
-
-    while (remainingJoints > 0 && branchIndex < chainLength) {
-      // Choose a joint from the backbone to branch from
-      const baseJoint = jointEntities[branchIndex + 1]; // Skip the first joint
-
-      // Create a branch joint
-      const angle = Math.PI / 2; // Branch upward
-      const branchX = x + (branchIndex + 1) * spacing;
-      const branchY = y - spacing;
-
-      const branchJoint = this.createJoint(branchX, branchY, organismEntity.id);
-      organism.jointIds.push(branchJoint.id);
-      jointEntities.push(branchJoint);
-
-      // Connect to base joint
-      this.connectJoints(baseJoint, branchJoint);
-
-      remainingJoints--;
-      branchIndex += 2; // Skip a joint for the next branch
-    }
-
-    // If we still have joints to allocate, add them as a second level of branches
-    branchIndex = 0;
-    while (
-      remainingJoints > 0 &&
-      branchIndex < jointEntities.length - chainLength - 1
-    ) {
-      const baseJoint = jointEntities[chainLength + 1 + branchIndex];
-
-      // Create a second-level branch
-      const branchX = baseJoint.getComponent(PositionComponent).position.x;
-      const branchY =
-        baseJoint.getComponent(PositionComponent).position.y - spacing;
-
-      const branchJoint = this.createJoint(branchX, branchY, organismEntity.id);
-      organism.jointIds.push(branchJoint.id);
-      jointEntities.push(branchJoint);
-
-      // Connect to base joint
-      this.connectJoints(baseJoint, branchJoint);
-
-      remainingJoints--;
-      branchIndex++;
+    
+    // Connect adjacent joints
+    for (let i = 0; i < jointEntities.length - 1; i++) {
+      this.connectJoints(jointEntities[i], jointEntities[i + 1]);
     }
   }
 
-  // src/simulation/ecs/EntityFactory.js - Update to connectJoints method
+  /**
+   * Create a tree body plan (branching structure)
+   * @private
+   */
+  createTreeBodyPlan(x, y, numJoints, organismEntity, organism) {
+    // Start with a trunk (central line)
+    const trunkLength = Math.min(Math.floor(numJoints / 2), 4);
+    const jointEntities = [];
+    const spacing = 25;
+    
+    // Create trunk joints
+    for (let i = 0; i < trunkLength; i++) {
+      const jointX = x;
+      const jointY = y + (i * spacing);
+      
+      const jointEntity = this.createJoint(jointX, jointY, organismEntity.id);
+      organism.jointIds.push(jointEntity.id);
+      jointEntities.push(jointEntity);
+    }
+    
+    // Connect trunk joints
+    for (let i = 0; i < trunkLength - 1; i++) {
+      this.connectJoints(jointEntities[i], jointEntities[i + 1]);
+    }
+    
+    // Add branches
+    const remainingJoints = numJoints - trunkLength;
+    let branchJointCount = 0;
+    
+    // Create branches from each trunk joint except the top one
+    for (let i = 0; i < trunkLength - 1 && branchJointCount < remainingJoints; i++) {
+      // Branch left
+      if (branchJointCount < remainingJoints) {
+        const branchX = x - spacing;
+        const branchY = y + (i * spacing);
+        
+        const branchJoint = this.createJoint(branchX, branchY, organismEntity.id);
+        organism.jointIds.push(branchJoint.id);
+        jointEntities.push(branchJoint);
+        
+        // Connect to trunk
+        this.connectJoints(jointEntities[i], branchJoint);
+        branchJointCount++;
+      }
+      
+      // Branch right
+      if (branchJointCount < remainingJoints) {
+        const branchX = x + spacing;
+        const branchY = y + (i * spacing);
+        
+        const branchJoint = this.createJoint(branchX, branchY, organismEntity.id);
+        organism.jointIds.push(branchJoint.id);
+        jointEntities.push(branchJoint);
+        
+        // Connect to trunk
+        this.connectJoints(jointEntities[i], branchJoint);
+        branchJointCount++;
+      }
+    }
+  }
 
   /**
-   * Helper method to connect two joints with reasonable rest lengths
+   * Helper method to connect two joints
    * @private
    */
   connectJoints(jointEntityA, jointEntityB) {
@@ -290,40 +247,7 @@ export class EntityFactory {
 
     // Calculate rest length
     const distance = positionA.position.distanceTo(positionB.position);
-
-    // Ensure rest length is within reasonable bounds
-    // This helps prevent extremely stretched organisms
-    const minRestLength = 10;
-    const maxRestLength = 50;
-    const restLength = Math.max(
-      minRestLength,
-      Math.min(maxRestLength, distance)
-    );
-
-    // If the actual distance is much larger than max rest length,
-    // move the joints closer together
-    if (distance > maxRestLength * 1.5) {
-      // Calculate the center point between the joints
-      const centerX = (positionA.position.x + positionB.position.x) / 2;
-      const centerY = (positionA.position.y + positionB.position.y) / 2;
-
-      // Calculate adjustment to bring them closer to center
-      const dirA = new Vector2(
-        centerX - positionA.position.x,
-        centerY - positionA.position.y
-      ).normalize();
-      const dirB = new Vector2(
-        centerX - positionB.position.x,
-        centerY - positionB.position.y
-      ).normalize();
-
-      // Move points closer to center
-      const moveDistance = (distance - maxRestLength) / 2;
-      positionA.position.x += dirA.x * moveDistance;
-      positionA.position.y += dirA.y * moveDistance;
-      positionB.position.x += dirB.x * moveDistance;
-      positionB.position.y += dirB.y * moveDistance;
-    }
+    const restLength = distance; // Default rest length is the initial distance
 
     // Add connections
     jointComponentA.connections.push(jointEntityB.id);
