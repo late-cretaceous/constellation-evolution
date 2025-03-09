@@ -8,7 +8,7 @@ export const CANVAS_WIDTH = 800;
 export const CANVAS_HEIGHT = 500;
 
 // Simulation settings
-export const GENERATION_TIME = 1000; // Simulation steps before new generation
+export const GENERATION_TIME = 2500; // Simulation steps before new generation (increased to allow more movement)
 export const INITIAL_POPULATION = 20;
 export const INITIAL_FOOD_AMOUNT = 50;
 export const DEFAULT_MUTATION_RATE = 0.1;
@@ -20,7 +20,7 @@ export const MAX_JOINT_COUNT = 8;
 export const DEFAULT_JOINT_COUNT = 5;
 export const JOINT_RADIUS = 5;
 export const JOINT_REST_LENGTH = 30;
-export const JOINT_STIFFNESS = 0.8;  // Stiffness of limb springs
+export const JOINT_STIFFNESS = 1.2;  // Increased stiffness of limb springs for more effective movement
 export const JOINT_DAMPING = 0.98;   // Damping of joint movement
 
 // Food settings

@@ -18,6 +18,7 @@ export class FoodSystem extends System {
   constructor(world) {
     super(world);
     this.foodsEaten = 0;
+    this.accumulatedTime = 0; // Track time for survival bonus
   }
 
   /**
@@ -26,7 +27,9 @@ export class FoodSystem extends System {
    * @returns {number} - Number of food items eaten in this update
    */
   update(deltaTime) {
+    this.accumulatedTime += deltaTime;
     this.foodsEaten = 0;
+    
     // Get all food entities
     const foodEntities = this.world.getEntitiesWithComponent(FoodComponent);
     
@@ -39,6 +42,12 @@ export class FoodSystem extends System {
     for (const organismEntity of organismEntities) {
       const organism = organismEntity.getComponent(OrganismComponent);
       const fitness = organismEntity.getComponent(FitnessComponent);
+      
+      // Award a small survival bonus over time
+      if (this.accumulatedTime > 1.0) { // Every second
+        fitness.fitness += 0.1; // Small survival bonus
+        this.accumulatedTime = 0;
+      }
       
       for (const foodEntity of foodEntities) {
         if (entitiesToRemove.includes(foodEntity.id)) continue; // Skip if already marked for removal

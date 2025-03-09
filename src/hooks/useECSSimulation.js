@@ -20,7 +20,6 @@ import {
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
- * Enhanced for more chaotic movement
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
  */
@@ -102,8 +101,8 @@ export function useECSSimulation(canvasRef) {
     
     // Add systems to world in specific order for proper processing
     world.addSystem(stateSystem)         // First determine joint states
-         .addSystem(physicsSystem)       // Then apply physics forces
          .addSystem(jointConnectionSystem) // Then handle joint connections
+         .addSystem(physicsSystem)       // Then apply physics forces
          .addSystem(foodSystem)          // Then check for food consumption
          .addSystem(renderSystem);       // Finally render everything
     
@@ -152,22 +151,22 @@ export function useECSSimulation(canvasRef) {
       world.update(updatedSpeed);
       
       // Increment timer and frame counter
-      timer += updatedSpeed * 40; // Increased from 20 to 40 for faster generation progression
+      timer += updatedSpeed * 20; // Reduced to allow longer generations
       frameCount++;
       
-      // Check for generation end conditions
-      const shouldEndGeneration = 
-        timer >= GENERATION_TIME || 
-        foodEntities.length === 0 || 
-        frameCount >= 800 ||     // Increased from 500 to 800 frames
-        generationEndCounter >= 300; // Force end after 300 frames of no progress
-        
       // Count frames where nothing happens (no food eaten)
       if (foodSystemRef.current.foodsEaten === 0 && frameCount > 100) {
         generationEndCounter++;
       } else {
         generationEndCounter = 0; // Reset counter if food was eaten
       }
+      
+      // Check for generation end conditions
+      let shouldEndGeneration = 
+        timer >= GENERATION_TIME || 
+        foodEntities.length === 0 || 
+        frameCount >= 1500 ||    // Increased to allow more time for movement
+        generationEndCounter >= 300; // Force end after 300 frames of no progress
       
       if (shouldEndGeneration) {
         const nextGenStats = evolutionSystem.createNextGeneration();
