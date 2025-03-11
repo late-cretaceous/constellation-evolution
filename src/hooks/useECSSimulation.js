@@ -20,6 +20,7 @@ import {
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
+ * Enhanced with better configuration options
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
  */
@@ -49,6 +50,7 @@ export function useECSSimulation(canvasRef) {
   const evolutionSystemRef = useRef(null);
   const renderSystemRef = useRef(null);
   const foodSystemRef = useRef(null);
+  const generationTimeoutRef = useRef(null);
   
   // Update refs when state changes
   useEffect(() => {
@@ -114,6 +116,12 @@ export function useECSSimulation(canvasRef) {
     let generationStartTime = performance.now() / 1000; // Track actual generation start time
     let frameCount = 0;
     let generationEndCounter = 0; // Counter for generations that seem stuck
+    let totalFoodEaten = 0; // Track total food eaten in this generation
+    
+    // Clear any existing timeout for generation
+    if (generationTimeoutRef.current) {
+      clearTimeout(generationTimeoutRef.current);
+    }
     
     // Main simulation loop
     const simulate = (currentTime) => {
@@ -129,6 +137,7 @@ export function useECSSimulation(canvasRef) {
         generationStartTime = performance.now() / 1000;
         frameCount = 0;
         generationEndCounter = 0;
+        totalFoodEaten = 0;
         setGeneration(0);
         setStats({
           bestFitness: 0,
@@ -140,10 +149,18 @@ export function useECSSimulation(canvasRef) {
         setNeedsRestart(false);
       }
       
-      // Always replenish some food to keep the simulation moving
+      // Replenish food at a rate proportional to population size
+      // This helps ensure there's always available food for larger populations
       const foodEntities = world.getEntitiesWithComponent('FoodComponent');
-      if (foodEntities.length < foodAmountRef.current * 0.8) {
-        evolutionSystem.replenishFood(Math.max(1, Math.floor(foodAmountRef.current * 0.1)));
+      const foodThreshold = Math.max(foodAmountRef.current * 0.7, populationRef.current * 1.5);
+      
+      if (foodEntities.length < foodThreshold) {
+        // Replenish more food for larger populations and less food when enough exists
+        const replenishAmount = Math.min(
+          Math.max(1, Math.floor(populationRef.current * 0.2)), 
+          Math.floor(foodAmountRef.current * 0.05)
+        );
+        evolutionSystem.replenishFood(replenishAmount);
       }
       
       // Update world with current simulation speed
@@ -153,10 +170,13 @@ export function useECSSimulation(canvasRef) {
       // Increment frame counter
       frameCount++;
       
+      // Track food eaten this frame
+      totalFoodEaten += foodSystemRef.current.foodsEaten;
+      
       // Count frames where nothing happens (no food eaten)
       if (foodSystemRef.current.foodsEaten === 0 && frameCount > 500) {
         generationEndCounter++;
-      } else {
+      } else if (foodSystemRef.current.foodsEaten > 0) {
         generationEndCounter = 0; // Reset counter if food was eaten
       }
       
@@ -165,19 +185,36 @@ export function useECSSimulation(canvasRef) {
       const elapsedRealTime = currentRealTime - generationStartTime;
       
       let shouldEndGeneration = 
-        elapsedRealTime >= GENERATION_TIME || // Use constant for generation duration in seconds
-        foodEntities.length === 0 || 
-        frameCount >= 100000 ||  // Extremely high to avoid frame-based termination
-        generationEndCounter >= 1000; // Only used when stuck with no progress
+        elapsedRealTime >= GENERATION_TIME || // Time-based termination
+        foodEntities.length === 0 ||          // All food consumed
+        totalFoodEaten >= foodAmountRef.current * 1.5 || // Enough food eaten
+        frameCount >= 200000 ||               // Extremely high frame count
+        generationEndCounter >= 1000;         // Stuck with no progress
         
       if (shouldEndGeneration) {
-        const nextGenStats = evolutionSystem.createNextGeneration();
+        const nextGenStats = evolutionSystemRef.current.createNextGeneration();
         setStats(nextGenStats);
         setGeneration(prev => prev + 1);
         generationStartTime = performance.now() / 1000;
         frameCount = 0;
         generationEndCounter = 0;
+        totalFoodEaten = 0;
       }
+      
+      // Set a backup timeout to ensure generation doesn't run indefinitely
+      // This is a safety mechanism in case the animation frame gets stuck
+      clearTimeout(generationTimeoutRef.current);
+      generationTimeoutRef.current = setTimeout(() => {
+        if (elapsedRealTime >= GENERATION_TIME * 1.5) {
+          const nextGenStats = evolutionSystemRef.current.createNextGeneration();
+          setStats(nextGenStats);
+          setGeneration(prev => prev + 1);
+          generationStartTime = performance.now() / 1000;
+          frameCount = 0;
+          generationEndCounter = 0;
+          totalFoodEaten = 0;
+        }
+      }, GENERATION_TIME * 1000);
       
       // Loop animation if running
       if (isRunning) {
@@ -193,6 +230,9 @@ export function useECSSimulation(canvasRef) {
     // Cleanup on unmount
     return () => {
       cancelAnimationFrame(animationFrameId);
+      if (generationTimeoutRef.current) {
+        clearTimeout(generationTimeoutRef.current);
+      }
     };
   }, [isRunning, needsRestart]);
   
