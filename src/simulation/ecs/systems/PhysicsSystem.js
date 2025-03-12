@@ -9,7 +9,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants';
 
 /**
  * System that handles physics calculations and movement
- * Simplified to deterministic physics without randomness
+ * Enhanced with more effective movement dynamics
  */
 export class PhysicsSystem extends System {
   /**
@@ -18,10 +18,20 @@ export class PhysicsSystem extends System {
    */
   constructor(world) {
     super(world);
+    
+    // Physics simulation constants - adjusted for more effective movement
+    this.velocityMultiplier = 1.4;    // Multiplier for velocity (overall speed factor)
+    this.forceMagnifier = 2.5;        // Multiplier for forces (power of movements)
+    this.damping = 0.95;              // Less damping for more fluid movement (0.98 originally)
+    this.maxVelocity = 45.0;          // Higher max velocity (30.0 originally)
+    this.bounceEnergyRetention = 0.9; // Energy retained on bounce (0.8 originally)
+    this.applyImpulse = true;         // Apply random impulses occasionally
+    this.impulseStrength = 15.0;      // Strength of random impulses
+    this.impulseProbability = 0.001;  // Probability of impulse per frame per entity
   }
 
   /**
-   * Update physics with deterministic movement based on forces
+   * Update physics with enhanced movement dynamics
    * @param {number} deltaTime - Time elapsed since last update
    */
   update(deltaTime) {
@@ -45,24 +55,38 @@ export class PhysicsSystem extends System {
           continue;
         }
         
-        // Calculate acceleration (F = ma)
-        const acceleration = physics.force.multiply(1 / physics.mass);
+        // Apply occasional random impulse to help "unstick" organisms
+        if (this.applyImpulse && Math.random() < this.impulseProbability) {
+          const angle = Math.random() * Math.PI * 2;
+          const impulse = new Vector2(
+            Math.cos(angle) * this.impulseStrength,
+            Math.sin(angle) * this.impulseStrength
+          );
+          physics.force = physics.force.add(impulse);
+        }
         
-        // Update velocity with acceleration
-        velocity.velocity = velocity.velocity.add(acceleration.multiply(deltaTime));
+        // Calculate acceleration (F = ma) with force multiplier
+        const magnifiedForce = physics.force.multiply(this.forceMagnifier);
+        const acceleration = magnifiedForce.multiply(1 / physics.mass);
         
-        // Apply damping (friction)
-        velocity.velocity = velocity.velocity.multiply(physics.damping);
+        // Update velocity with acceleration and velocity multiplier
+        const velocityChange = acceleration.multiply(deltaTime * this.velocityMultiplier);
+        velocity.velocity = velocity.velocity.add(velocityChange);
         
-        // Apply velocity limit to prevent extreme stretching
-        const maxVelocity = 30.0;
+        // Apply custom damping (lower than original for more fluid movement)
+        velocity.velocity = velocity.velocity.multiply(
+          // Use joint-specific damping if available, otherwise use system default
+          entity.hasComponent(JointComponent) ? physics.damping : this.damping
+        );
+        
+        // Apply velocity limit to prevent extreme movement
         const currentSpeed = Math.sqrt(
           velocity.velocity.x * velocity.velocity.x + 
           velocity.velocity.y * velocity.velocity.y
         );
         
-        if (currentSpeed > maxVelocity) {
-          const scale = maxVelocity / currentSpeed;
+        if (currentSpeed > this.maxVelocity) {
+          const scale = this.maxVelocity / currentSpeed;
           velocity.velocity = velocity.velocity.multiply(scale);
         }
         
@@ -72,23 +96,23 @@ export class PhysicsSystem extends System {
         // Check for boundary collisions
         const padding = 10;
         
-        // Simple boundary collision handling
+        // Enhanced boundary collision handling with better energy retention
         if (position.position.x < padding) {
           position.position.x = padding;
-          velocity.velocity.x *= -0.8; // Lose some energy on bounce
+          velocity.velocity.x *= -this.bounceEnergyRetention;
         }
         else if (position.position.x > CANVAS_WIDTH - padding) {
           position.position.x = CANVAS_WIDTH - padding;
-          velocity.velocity.x *= -0.8;
+          velocity.velocity.x *= -this.bounceEnergyRetention;
         }
         
         if (position.position.y < padding) {
           position.position.y = padding;
-          velocity.velocity.y *= -0.8;
+          velocity.velocity.y *= -this.bounceEnergyRetention;
         }
         else if (position.position.y > CANVAS_HEIGHT - padding) {
           position.position.y = CANVAS_HEIGHT - padding;
-          velocity.velocity.y *= -0.8;
+          velocity.velocity.y *= -this.bounceEnergyRetention;
         }
         
         // Reset force for next update

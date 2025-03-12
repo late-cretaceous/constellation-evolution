@@ -107,11 +107,11 @@ export class RenderSystem extends System {
         this.ctx.closePath();
       }
       
-      // Draw fitness value above organism
+      // Draw fitness value above organism (rounded to integer)
       this.ctx.fillStyle = 'white';
       this.ctx.textAlign = 'center';
       this.ctx.font = '10px Arial';
-      this.ctx.fillText(fitness.fitness, centerX, centerY - 20);
+      this.ctx.fillText(Math.round(fitness.fitness), centerX, centerY - 20);
       
       // Draw joint count below organism
       this.ctx.fillStyle = '#8AF';

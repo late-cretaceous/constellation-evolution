@@ -9,6 +9,7 @@ import { EATING_DISTANCE, FOOD_VALUE } from '../../constants';
 
 /**
  * System that handles food consumption and tracks fitness
+ * Fixed to remove any automatic fitness increases
  */
 export class FoodSystem extends System {
   /**
@@ -18,7 +19,10 @@ export class FoodSystem extends System {
   constructor(world) {
     super(world);
     this.foodsEaten = 0;
-    this.accumulatedTime = 0; // Track time for survival bonus
+    
+    // Fixed parameters - removing any automatic fitness increases
+    this.eatingDistance = EATING_DISTANCE;
+    this.foodValue = FOOD_VALUE;
   }
 
   /**
@@ -27,7 +31,6 @@ export class FoodSystem extends System {
    * @returns {number} - Number of food items eaten in this update
    */
   update(deltaTime) {
-    this.accumulatedTime += deltaTime;
     this.foodsEaten = 0;
     
     // Get all food entities
@@ -43,11 +46,7 @@ export class FoodSystem extends System {
       const organism = organismEntity.getComponent(OrganismComponent);
       const fitness = organismEntity.getComponent(FitnessComponent);
       
-      // Award a small survival bonus over time
-      if (this.accumulatedTime > 5.0) { // Every 5 seconds (reduced frequency)
-        fitness.fitness += 0.5; // Small survival bonus
-        this.accumulatedTime = 0;
-      }
+      // No automatic survival bonus - fitness only increases by eating food
       
       for (const foodEntity of foodEntities) {
         if (entitiesToRemove.includes(foodEntity.id)) continue; // Skip if already marked for removal
@@ -61,9 +60,9 @@ export class FoodSystem extends System {
           
           const jointPosition = jointEntity.getComponent(PositionComponent);
           
-          if (jointPosition.position.distanceTo(foodPosition.position) < EATING_DISTANCE) {
-            // Eat the food
-            fitness.fitness += FOOD_VALUE;
+          if (jointPosition.position.distanceTo(foodPosition.position) < this.eatingDistance) {
+            // Eat the food - fixed value with no bonuses
+            fitness.fitness += this.foodValue;
             fitness.foodEaten++;
             entitiesToRemove.push(foodEntity.id);
             this.foodsEaten++;

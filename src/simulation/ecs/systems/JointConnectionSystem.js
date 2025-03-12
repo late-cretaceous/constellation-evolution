@@ -6,7 +6,7 @@ import { PhysicsComponent } from '../components/PhysicsComponent';
 import { Vector2 } from '../utils/Vector2';
 
 /**
- * System that handles connections between joints with simple extend/contract behavior
+ * System that handles connections between joints with enhanced extend/contract behavior
  */
 export class JointConnectionSystem extends System {
   /**
@@ -15,10 +15,17 @@ export class JointConnectionSystem extends System {
    */
   constructor(world) {
     super(world);
+    
+    // Enhanced joint connection parameters
+    this.extensionFactor = 1.8;   // Increased from 1.3 - How much joints extend
+    this.contractionFactor = 0.6; // Decreased from 0.7 - How much joints contract
+    this.forceMultiplier = 2.0;   // Multiplier for spring forces
+    this.minRestLength = 15;      // Minimum rest length to prevent collapse
+    this.adaptiveForces = true;   // Use adaptive forces based on distance
   }
 
   /**
-   * Update joint connections with simple spring forces based on states
+   * Update joint connections with enhanced spring forces
    * @param {number} deltaTime - Time elapsed since last update
    */
   update(deltaTime) {
@@ -47,17 +54,34 @@ export class JointConnectionSystem extends System {
         const connectedJoint = connectedEntity.getComponent(JointComponent);
         
         // Get the current rest length for this connection
-        // This changes based on whether the limb is extending or contracting
-        const restLength = jointComponent.restLengths.get(connectedJointId) || 
-                         jointComponent.defaultRestLength;
+        // Enhanced with better extension/contraction factors
+        let restLength = jointComponent.restLengths.get(connectedJointId) || 
+                          jointComponent.defaultRestLength;
+        
+        // Apply adaptive extension/contraction based on current distance
+        const currentDistance = jointPosition.position.distanceTo(connectedPosition.position);
+        
+        // Enhanced adaptive rest length calculation
+        if (this.adaptiveForces) {
+          // If joints are very far apart, increase the contraction force
+          if (currentDistance > restLength * 1.5) {
+            restLength = Math.max(restLength * 0.9, this.minRestLength);
+          }
+          // If joints are very close, increase the extension force
+          else if (currentDistance < restLength * 0.5) {
+            restLength = restLength * 1.1;
+          }
+        }
         
         // Calculate spring force direction
         const direction = connectedPosition.position.subtract(jointPosition.position);
-        const distance = Math.max(0.1, jointPosition.position.distanceTo(connectedPosition.position));
+        const distance = Math.max(0.1, currentDistance);
         
         // Calculate spring force magnitude (F = k * Δx)
         const stretch = distance - restLength;
-        const forceMagnitude = stretch * jointPhysics.stiffness;
+        
+        // Enhanced force calculation with adaptive stiffness
+        let forceMagnitude = stretch * jointPhysics.stiffness * this.forceMultiplier;
         
         // Apply spring force in the direction of the connection
         const springForce = direction.normalize().multiply(forceMagnitude);
