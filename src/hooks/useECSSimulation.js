@@ -11,6 +11,8 @@ import { EvolutionSystem } from '../simulation/ecs/systems/EvolutionSystem';
 import { PositionComponent } from '../simulation/ecs/components/PositionComponent';
 import { OrganismComponent } from '../simulation/ecs/components/OrganismComponent';
 import { FoodComponent } from '../simulation/ecs/components/FoodComponent';
+import { GeneticComponent } from '../simulation/ecs/components/GeneticComponent';
+import { FitnessComponent } from '../simulation/ecs/components/FitnessComponent';
 import { 
   CANVAS_WIDTH, 
   CANVAS_HEIGHT, 
@@ -20,10 +22,11 @@ import {
   DEFAULT_MUTATION_RATE,
   DEFAULT_SIMULATION_SPEED
 } from '../simulation/constants';
+import { saveSimulationState, loadSimulationState, hasSavedState } from '../utils/simulationStorage';
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
- * Enhanced with better configuration options and entity position tracking
+ * Enhanced with better configuration options, entity position tracking, and autosave
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
  */
@@ -43,6 +46,8 @@ export function useECSSimulation(canvasRef) {
     avgJoints: 0
   });
   const [needsRestart, setNeedsRestart] = useState(false);
+  const [showRestartConfirmation, setShowRestartConfirmation] = useState(false);
+  const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false);
   
   // Entity position tracking for minimap
   const [organismPositions, setOrganismPositions] = useState([]);
@@ -54,6 +59,7 @@ export function useECSSimulation(canvasRef) {
   const mutationRateRef = useRef(mutationRate);
   const speedRef = useRef(speed);
   const worldRef = useRef(null);
+  const entityFactoryRef = useRef(null);
   const evolutionSystemRef = useRef(null);
   const renderSystemRef = useRef(null);
   const foodSystemRef = useRef(null);
@@ -66,6 +72,9 @@ export function useECSSimulation(canvasRef) {
   const generationEndCounterRef = useRef(0);
   const totalFoodEatenRef = useRef(0);
   const minimapUpdateTimerRef = useRef(0);
+  const autosaveTimerRef = useRef(0);
+  const generationRef = useRef(generation);
+  const statsRef = useRef(stats);
   const simulationInitializedRef = useRef(false);
   
   // Update refs when state changes
@@ -88,6 +97,149 @@ export function useECSSimulation(canvasRef) {
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+  
+  useEffect(() => {
+    generationRef.current = generation;
+  }, [generation]);
+  
+  useEffect(() => {
+    statsRef.current = stats;
+  }, [stats]);
+  
+  /**
+   * Save the current simulation state
+   * Simplified to only save configuration and statistics, not organism state
+   */
+  const saveCurrentState = () => {
+    if (!simulationInitializedRef.current) return;
+    
+    const state = {
+      timestamp: Date.now(),
+      generation: generationRef.current,
+      stats: statsRef.current,
+      config: {
+        population: populationRef.current,
+        foodAmount: foodAmountRef.current,
+        mutationRate: mutationRateRef.current,
+        speed: speedRef.current,
+      }
+      // Not saving organisms or food positions to avoid freezing issues
+    };
+    
+    saveSimulationState(state);
+  };
+  
+  /**
+   * Create an organism from saved data
+   */
+  const createOrganismFromSavedData = (data) => {
+    if (!entityFactoryRef.current) return null;
+    
+    try {
+      // Default position if missing
+      const position = {
+        x: data.position?.x ?? CANVAS_WIDTH / 2,
+        y: data.position?.y ?? CANVAS_HEIGHT / 2
+      };
+      
+      // Default joints count if missing
+      const joints = typeof data.joints === 'number' ? data.joints : 5;
+      
+      // Create genetics component from saved data or create new if invalid
+      let genetics;
+      if (data.genetics && typeof data.genetics === 'object') {
+        try {
+          genetics = new GeneticComponent(data.genetics);
+        } catch (error) {
+          console.warn('Error creating genetics from saved data, using default', error);
+          genetics = new GeneticComponent();
+        }
+      } else {
+        genetics = new GeneticComponent();
+      }
+      
+      // Create organism
+      return entityFactoryRef.current.createOrganism(
+        position.x,
+        position.y,
+        joints,
+        genetics
+      );
+    } catch (error) {
+      console.error('Failed to create organism from saved data:', error);
+      return null;
+    }
+  };
+  
+  /**
+   * Load saved simulation state
+   */
+  const loadSavedState = () => {
+    const savedState = loadSimulationState();
+    if (!savedState || !worldRef.current || !entityFactoryRef.current) return false;
+    
+    // Clear current world
+    worldRef.current.clear();
+    
+    // Restore configuration
+    setPopulation(savedState.config.population);
+    populationRef.current = savedState.config.population;
+    
+    setFoodAmount(savedState.config.foodAmount);
+    foodAmountRef.current = savedState.config.foodAmount;
+    
+    setMutationRate(savedState.config.mutationRate);
+    mutationRateRef.current = savedState.config.mutationRate;
+    
+    setSpeed(savedState.config.speed);
+    speedRef.current = savedState.config.speed;
+    
+    // Restore generation and stats
+    setGeneration(savedState.generation);
+    generationRef.current = savedState.generation;
+    
+    setStats(savedState.stats);
+    statsRef.current = savedState.stats;
+    
+    // Update evolution system params
+    evolutionSystemRef.current.setParams(
+      savedState.config.foodAmount,
+      savedState.config.population,
+      savedState.config.mutationRate
+    );
+    
+    // Recreate organisms
+    for (const organismData of savedState.organisms) {
+      createOrganismFromSavedData(organismData);
+    }
+    
+    // Recreate food if positions exist
+    if (savedState.foodPositions && Array.isArray(savedState.foodPositions)) {
+      for (const foodPos of savedState.foodPositions) {
+        if (foodPos && typeof foodPos.x === 'number' && typeof foodPos.y === 'number') {
+          entityFactoryRef.current.createFood(foodPos.x, foodPos.y);
+        }
+      }
+    } else {
+      // Fallback: Create initial food placement if no food positions in saved state
+      for (let i = 0; i < savedState.config.foodAmount; i++) {
+        const x = Math.random() * CANVAS_WIDTH;
+        const y = Math.random() * CANVAS_HEIGHT;
+        entityFactoryRef.current.createFood(x, y);
+      }
+    }
+    
+    // Update positions for minimap
+    updateEntityPositions();
+    
+    // Reset timers
+    generationStartTimeRef.current = performance.now() / 1000;
+    frameCountRef.current = 0;
+    generationEndCounterRef.current = 0;
+    totalFoodEatenRef.current = 0;
+    
+    return true;
+  };
   
   /**
    * Updates entity positions for the minimap
@@ -215,6 +367,13 @@ export function useECSSimulation(canvasRef) {
       minimapUpdateTimerRef.current = 0;
     }
     
+    // Autosave every 30 seconds of real time
+    autosaveTimerRef.current += deltaTime;
+    if (autosaveTimerRef.current >= 30) {
+      saveCurrentState();
+      autosaveTimerRef.current = 0;
+    }
+    
     // Check for generation end conditions - use actual elapsed time
     const currentRealTime = performance.now() / 1000;
     const elapsedRealTime = currentRealTime - generationStartTimeRef.current;
@@ -237,6 +396,9 @@ export function useECSSimulation(canvasRef) {
       
       // Update minimap after generation change
       updateEntityPositions();
+      
+      // Save state after generation change
+      setTimeout(() => saveCurrentState(), 500);
     }
     
     // Set a backup timeout to ensure generation doesn't run indefinitely
@@ -254,6 +416,9 @@ export function useECSSimulation(canvasRef) {
         
         // Update minimap after generation change
         updateEntityPositions();
+        
+        // Save state after generation change
+        setTimeout(() => saveCurrentState(), 500);
       }
     }, GENERATION_TIME * 1000);
     
@@ -272,64 +437,154 @@ export function useECSSimulation(canvasRef) {
       return;
     }
     
-    // Mark as initialized
-    simulationInitializedRef.current = true;
+    // Safety timeout to prevent infinite loops
+    const initTimeoutId = setTimeout(() => {
+      console.error("Initialization timed out, resetting to fresh state");
+      localStorage.removeItem('evolution-simulator-state');
+      window.location.reload();
+    }, 5000);
     
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    // Initialize ECS world and systems
-    const world = new World();
-    worldRef.current = world;
-    
-    const entityFactory = new EntityFactory(world);
-    
-    // Create systems
-    const physicsSystem = new PhysicsSystem(world);
-    const jointConnectionSystem = new JointConnectionSystem(world);
-    const foodSystem = new FoodSystem(world);
-    const stateSystem = new StateSystem(world);
-    const renderSystem = new RenderSystem(world, ctx);
-    const evolutionSystem = new EvolutionSystem(
-      world,
-      entityFactory,
-      foodAmountRef.current,
-      populationRef.current,
-      mutationRateRef.current
-    );
-    
-    // Store references to systems we need to access later
-    evolutionSystemRef.current = evolutionSystem;
-    renderSystemRef.current = renderSystem;
-    foodSystemRef.current = foodSystem;
-    
-    // Add systems to world in specific order for proper processing
-    world.addSystem(stateSystem)            // First determine joint states
-         .addSystem(jointConnectionSystem)  // Then handle joint connections
-         .addSystem(physicsSystem)          // Then apply physics forces
-         .addSystem(foodSystem)             // Then check for food consumption
-         .addSystem(renderSystem);          // Finally render everything
-    
-    // Initialize the first generation
-    evolutionSystem.initializeGeneration();
-    
-    // Reset simulation state
-    lastTimeRef.current = performance.now();
-    generationStartTimeRef.current = performance.now() / 1000;
-    frameCountRef.current = 0;
-    generationEndCounterRef.current = 0;
-    totalFoodEatenRef.current = 0;
-    
-    // Clear any existing timeout for generation
-    if (generationTimeoutRef.current) {
-      clearTimeout(generationTimeoutRef.current);
+    try {
+      // Mark as initialized
+      simulationInitializedRef.current = true;
+      
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      
+      // Initialize ECS world and systems
+      const world = new World();
+      worldRef.current = world;
+      
+      const entityFactory = new EntityFactory(world);
+      entityFactoryRef.current = entityFactory;
+      
+      // Create systems
+      const physicsSystem = new PhysicsSystem(world);
+      const jointConnectionSystem = new JointConnectionSystem(world);
+      const foodSystem = new FoodSystem(world);
+      const stateSystem = new StateSystem(world);
+      const renderSystem = new RenderSystem(world, ctx);
+      const evolutionSystem = new EvolutionSystem(
+        world,
+        entityFactory,
+        foodAmountRef.current,
+        populationRef.current,
+        mutationRateRef.current
+      );
+      
+      // Store references to systems we need to access later
+      evolutionSystemRef.current = evolutionSystem;
+      renderSystemRef.current = renderSystem;
+      foodSystemRef.current = foodSystem;
+      
+      // Add systems to world in specific order for proper processing
+      world.addSystem(stateSystem)            // First determine joint states
+           .addSystem(jointConnectionSystem)  // Then handle joint connections
+           .addSystem(physicsSystem)          // Then apply physics forces
+           .addSystem(foodSystem)             // Then check for food consumption
+           .addSystem(renderSystem);          // Finally render everything
+      
+      // Start with fresh simulation always (for now) since we had loading issues
+      // We'll only restore configuration values, not entity states
+      let loadedConfig = false;
+      
+      // Only try to load configuration - not organism state
+      if (!needsRestart && hasSavedState()) {
+        try {
+          const savedState = loadSimulationState();
+          if (savedState && savedState.config) {
+            // Just restore configuration and generation number, not entities
+            if (typeof savedState.generation === 'number') {
+              setGeneration(savedState.generation);
+              generationRef.current = savedState.generation;
+            }
+            
+            if (savedState.stats) {
+              setStats(savedState.stats);
+              statsRef.current = savedState.stats;
+            }
+            
+            if (typeof savedState.config.population === 'number') {
+              setPopulation(savedState.config.population);
+              populationRef.current = savedState.config.population;
+            }
+            
+            if (typeof savedState.config.foodAmount === 'number') {
+              setFoodAmount(savedState.config.foodAmount);
+              foodAmountRef.current = savedState.config.foodAmount;
+            }
+            
+            if (typeof savedState.config.mutationRate === 'number') {
+              setMutationRate(savedState.config.mutationRate);
+              mutationRateRef.current = savedState.config.mutationRate;
+            }
+            
+            if (typeof savedState.config.speed === 'number') {
+              setSpeed(savedState.config.speed);
+              speedRef.current = savedState.config.speed;
+            }
+            
+            evolutionSystem.setParams(
+              foodAmountRef.current,
+              populationRef.current,
+              mutationRateRef.current
+            );
+            
+            loadedConfig = true;
+            setHasLoadedSavedState(true);
+          }
+        } catch (error) {
+          console.error("Error loading configuration, starting fresh:", error);
+        }
+      }
+      
+      // Always initialize a fresh generation of entities
+      evolutionSystem.initializeGeneration();
+      
+      // If we didn't load config, reset stats too
+      if (!loadedConfig) {
+        setGeneration(0);
+        setStats({
+          bestFitness: 0,
+          averageFitness: 0,
+          minJoints: 0,
+          maxJoints: 0,
+          avgJoints: 0
+        });
+      }
+      
+      // Reset simulation state
+      lastTimeRef.current = performance.now();
+      generationStartTimeRef.current = performance.now() / 1000;
+      frameCountRef.current = 0;
+      generationEndCounterRef.current = 0;
+      totalFoodEatenRef.current = 0;
+      autosaveTimerRef.current = 0;
+      
+      // Clear any existing timeout for generation
+      if (generationTimeoutRef.current) {
+        clearTimeout(generationTimeoutRef.current);
+      }
+      
+      // Initial entity positions update
+      updateEntityPositions();
+      
+      // Clear the safety timeout since we completed initialization
+      clearTimeout(initTimeoutId);
+    } catch (error) {
+      console.error("Fatal error during initialization:", error);
+      clearTimeout(initTimeoutId);
+      
+      // Reset everything and try again with fresh state
+      localStorage.removeItem('evolution-simulator-state');
+      setNeedsRestart(true);
     }
-    
-    // Initial entity positions update
-    updateEntityPositions();
     
     // Cleanup function
     return () => {
+      // Save state before unmounting
+      saveCurrentState();
+      
       if (animationFrameIdRef.current) {
         cancelAnimationFrame(animationFrameIdRef.current);
       }
@@ -353,6 +608,9 @@ export function useECSSimulation(canvasRef) {
     // Start animation loop if running
     if (isRunning) {
       animationFrameIdRef.current = requestAnimationFrame(simulate);
+    } else {
+      // Save state when pausing
+      saveCurrentState();
     }
     
     // Cleanup
@@ -364,18 +622,51 @@ export function useECSSimulation(canvasRef) {
     };
   }, [isRunning]);
   
+  // Save state when window is about to unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveCurrentState();
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+  
   /**
    * Toggle the simulation on/off
    */
   const toggleSimulation = () => {
+    if (isRunning) {
+      // Save state when pausing
+      saveCurrentState();
+    }
+    
     setIsRunning(!isRunning);
   };
   
   /**
-   * Restart the simulation with current settings
+   * Request restart confirmation
    */
-  const restartSimulation = () => {
+  const requestRestartSimulation = () => {
+    setShowRestartConfirmation(true);
+  };
+  
+  /**
+   * Confirm restart simulation
+   */
+  const confirmRestartSimulation = () => {
+    setShowRestartConfirmation(false);
     setNeedsRestart(true);
+  };
+  
+  /**
+   * Cancel restart simulation
+   */
+  const cancelRestartSimulation = () => {
+    setShowRestartConfirmation(false);
   };
   
   return {
@@ -387,6 +678,8 @@ export function useECSSimulation(canvasRef) {
     mutationRate,
     speed,
     stats,
+    hasLoadedSavedState,
+    showRestartConfirmation,
     
     // Entity positions for minimap
     organismPositions,
@@ -400,7 +693,9 @@ export function useECSSimulation(canvasRef) {
     
     // Actions
     toggleSimulation,
-    restartSimulation
+    requestRestartSimulation,
+    confirmRestartSimulation,
+    cancelRestartSimulation
   };
 }
 

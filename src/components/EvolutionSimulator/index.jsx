@@ -10,7 +10,7 @@ import './EvolutionSimulator.css';
 
 /**
  * Main Evolution Simulator component with scrolling and zooming
- * Updated with real entity positions for minimap
+ * Updated with real entity positions for minimap and autosave functionality
  */
 const EvolutionSimulator = () => {
   const canvasRef = useRef(null);
@@ -25,6 +25,12 @@ const EvolutionSimulator = () => {
     <div className="simulator-container">
       <h1 className="simulator-title">Dot Organism Evolution Simulator</h1>
       
+      {simulation.hasLoadedSavedState && (
+        <div className="autosave-notice">
+          Loaded saved simulation from your last session!
+        </div>
+      )}
+      
       <div className="simulator-layout">
         <div className="simulation-area">
           <div className="canvas-wrapper">
@@ -33,7 +39,6 @@ const EvolutionSimulator = () => {
               height={CANVAS_HEIGHT}
               pixelRatio={pixelRatio}
               canvasRef={canvasRef}
-              // Pass real entity positions to the canvas for minimap
               organismPositions={simulation.organismPositions}
               foodPositions={simulation.foodPositions}
             />
@@ -47,7 +52,10 @@ const EvolutionSimulator = () => {
             stats={simulation.stats}
             isRunning={simulation.isRunning}
             onToggleSimulation={simulation.toggleSimulation}
-            onRestartSimulation={simulation.restartSimulation}
+            onRestartSimulation={simulation.requestRestartSimulation}
+            showRestartConfirmation={simulation.showRestartConfirmation}
+            onConfirmRestart={simulation.confirmRestartSimulation}
+            onCancelRestart={simulation.cancelRestartSimulation}
           />
         </div>
         

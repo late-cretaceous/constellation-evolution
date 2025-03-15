@@ -2,13 +2,17 @@ import React from 'react';
 
 /**
  * Displays simulation statistics and control buttons
+ * Enhanced with restart confirmation dialog
  */
 const SimulationStats = ({ 
   generation, 
   stats, 
   isRunning, 
   onToggleSimulation, 
-  onRestartSimulation 
+  onRestartSimulation,
+  showRestartConfirmation,
+  onConfirmRestart,
+  onCancelRestart
 }) => {
   return (
     <div className="stats-container">
@@ -25,17 +29,40 @@ const SimulationStats = ({
           >
             {isRunning ? 'Pause' : 'Resume'}
           </button>
-          <button
-            onClick={onRestartSimulation}
-            className="button button-red"
-          >
-            Restart
-          </button>
+          
+          {!showRestartConfirmation ? (
+            <button
+              onClick={onRestartSimulation}
+              className="button button-red"
+            >
+              Restart
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={onConfirmRestart}
+                className="button button-red"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={onCancelRestart}
+                className="button button-green"
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
       <div className="joint-diversity">
         Joint Diversity: Min {stats.minJoints} | Avg {stats.avgJoints} | Max {stats.maxJoints}
       </div>
+      {showRestartConfirmation && (
+        <div className="restart-warning">
+          Warning: Restarting will erase all current progress. Continue?
+        </div>
+      )}
     </div>
   );
 };
