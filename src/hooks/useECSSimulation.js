@@ -8,6 +8,9 @@ import { FoodSystem } from '../simulation/ecs/systems/FoodSystem';
 import { StateSystem } from '../simulation/ecs/systems/StateSystem';
 import { RenderSystem } from '../simulation/ecs/systems/RenderSystem';
 import { EvolutionSystem } from '../simulation/ecs/systems/EvolutionSystem';
+import { PositionComponent } from '../simulation/ecs/components/PositionComponent';
+import { OrganismComponent } from '../simulation/ecs/components/OrganismComponent';
+import { FoodComponent } from '../simulation/ecs/components/FoodComponent';
 import { 
   CANVAS_WIDTH, 
   CANVAS_HEIGHT, 
@@ -20,7 +23,7 @@ import {
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
- * Enhanced with better configuration options
+ * Enhanced with better configuration options and entity position tracking
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
  */
@@ -40,6 +43,10 @@ export function useECSSimulation(canvasRef) {
     avgJoints: 0
   });
   const [needsRestart, setNeedsRestart] = useState(false);
+  
+  // Entity position tracking for minimap
+  const [organismPositions, setOrganismPositions] = useState([]);
+  const [foodPositions, setFoodPositions] = useState([]);
   
   // Refs to hold current values without triggering re-renders
   const populationRef = useRef(population);
@@ -68,6 +75,63 @@ export function useECSSimulation(canvasRef) {
   useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
+  
+  /**
+   * Updates entity positions for the minimap
+   */
+  const updateEntityPositions = () => {
+    if (!worldRef.current) return;
+    
+    // Get organism positions - calculate center of each organism
+    const organismEntities = worldRef.current.getEntitiesWithComponent(OrganismComponent);
+    const newOrganismPositions = [];
+    
+    for (const organismEntity of organismEntities) {
+      const organism = organismEntity.getComponent(OrganismComponent);
+      let totalX = 0;
+      let totalY = 0;
+      let validJointCount = 0;
+      
+      // Calculate center position from all joints
+      for (const jointId of organism.jointIds) {
+        const jointEntity = worldRef.current.getEntity(jointId);
+        if (!jointEntity) continue;
+        
+        const position = jointEntity.getComponent(PositionComponent);
+        if (position) {
+          totalX += position.position.x;
+          totalY += position.position.y;
+          validJointCount++;
+        }
+      }
+      
+      // Only add if we have valid joints
+      if (validJointCount > 0) {
+        newOrganismPositions.push({
+          x: totalX / validJointCount,
+          y: totalY / validJointCount
+        });
+      }
+    }
+    
+    // Get food positions
+    const foodEntities = worldRef.current.getEntitiesWithComponent(FoodComponent);
+    const newFoodPositions = [];
+    
+    for (const foodEntity of foodEntities) {
+      const position = foodEntity.getComponent(PositionComponent);
+      if (position) {
+        newFoodPositions.push({
+          x: position.position.x,
+          y: position.position.y
+        });
+      }
+    }
+    
+    // Update state
+    setOrganismPositions(newOrganismPositions);
+    setFoodPositions(newFoodPositions);
+  };
   
   // Main simulation effect
   useEffect(() => {
@@ -117,6 +181,7 @@ export function useECSSimulation(canvasRef) {
     let frameCount = 0;
     let generationEndCounter = 0; // Counter for generations that seem stuck
     let totalFoodEaten = 0; // Track total food eaten in this generation
+    let minimapUpdateTimer = 0; // Timer for minimap updates
     
     // Clear any existing timeout for generation
     if (generationTimeoutRef.current) {
@@ -147,6 +212,9 @@ export function useECSSimulation(canvasRef) {
           avgJoints: 0
         });
         setNeedsRestart(false);
+        
+        // Update minimap immediately after restart
+        updateEntityPositions();
       }
       
       // Replenish food at a rate proportional to population size
@@ -180,6 +248,13 @@ export function useECSSimulation(canvasRef) {
         generationEndCounter = 0; // Reset counter if food was eaten
       }
       
+      // Update minimap positions at a reduced rate (every 10 frames)
+      minimapUpdateTimer += deltaTime;
+      if (minimapUpdateTimer >= 0.2) { // Update every 0.2 seconds
+        updateEntityPositions();
+        minimapUpdateTimer = 0;
+      }
+      
       // Check for generation end conditions - use actual elapsed time
       const currentRealTime = performance.now() / 1000;
       const elapsedRealTime = currentRealTime - generationStartTime;
@@ -199,6 +274,9 @@ export function useECSSimulation(canvasRef) {
         frameCount = 0;
         generationEndCounter = 0;
         totalFoodEaten = 0;
+        
+        // Update minimap after generation change
+        updateEntityPositions();
       }
       
       // Set a backup timeout to ensure generation doesn't run indefinitely
@@ -213,6 +291,9 @@ export function useECSSimulation(canvasRef) {
           frameCount = 0;
           generationEndCounter = 0;
           totalFoodEaten = 0;
+          
+          // Update minimap after generation change
+          updateEntityPositions();
         }
       }, GENERATION_TIME * 1000);
       
@@ -226,6 +307,9 @@ export function useECSSimulation(canvasRef) {
     if (isRunning) {
       animationFrameId = requestAnimationFrame(simulate);
     }
+    
+    // Initial entity positions update
+    updateEntityPositions();
     
     // Cleanup on unmount
     return () => {
@@ -259,6 +343,10 @@ export function useECSSimulation(canvasRef) {
     mutationRate,
     speed,
     stats,
+    
+    // Entity positions for minimap
+    organismPositions,
+    foodPositions,
     
     // Setters
     setPopulation,

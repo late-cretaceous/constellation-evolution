@@ -4,18 +4,22 @@ import { DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from '../../simulation/constants'
 
 /**
  * The canvas component for rendering the simulation with high-DPI support and scrolling
- * Enhanced with responsive sizing, improved rendering, and separate minimap
+ * Enhanced with responsive sizing, improved rendering, and real entity positions in minimap
  * @param {Object} props - Component props
  * @param {number} props.width - Logical canvas width
  * @param {number} props.height - Logical canvas height
  * @param {number} props.pixelRatio - Pixel ratio for high-DPI rendering (default: devicePixelRatio)
  * @param {React.RefObject} props.canvasRef - Reference to the canvas element
+ * @param {Array} props.organismPositions - Positions of organisms for minimap
+ * @param {Array} props.foodPositions - Positions of food for minimap
  */
 const SimulationCanvas = ({ 
   width, 
   height, 
   pixelRatio = window.devicePixelRatio || 1, 
-  canvasRef 
+  canvasRef,
+  organismPositions = [],
+  foodPositions = []
 }) => {
   // Viewport state
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
@@ -23,10 +27,6 @@ const SimulationCanvas = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [initialOffset, setInitialOffset] = useState({ x: 0, y: 0 });
-  
-  // Track entity positions for minimap (simplified version for demo)
-  const [organismPositions, setOrganismPositions] = useState([]);
-  const [foodPositions, setFoodPositions] = useState([]);
   
   // Viewport container ref
   const containerRef = useRef(null);
@@ -49,30 +49,7 @@ const SimulationCanvas = ({
     ctx.pixelRatio = pixelRatio;
     ctx.viewportOffset = viewportOffset;
     ctx.viewportScale = scale;
-    
-    // Update minimap display - in a real implementation, this would come from the ECS world
-    // This is just a placeholder for demonstration
   }, [pixelRatio, viewportOffset, scale]);
-  
-  // Update entity positions for minimap (in a real implementation, this would come from the ECS world)
-  useEffect(() => {
-    // This is just a placeholder - in a real implementation, these positions would come from the world
-    const simulationInterval = setInterval(() => {
-      // Fake organism positions for demo purposes
-      setOrganismPositions(Array.from({ length: 10 }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height
-      })));
-      
-      // Fake food positions for demo purposes
-      setFoodPositions(Array.from({ length: 20 }, () => ({
-        x: Math.random() * width,
-        y: Math.random() * height
-      })));
-    }, 2000);
-    
-    return () => clearInterval(simulationInterval);
-  }, [width, height]);
   
   // Resize canvas on window resize
   useEffect(() => {
@@ -254,7 +231,7 @@ const SimulationCanvas = ({
         onTouchEnd={handleTouchEnd}
       />
       
-      {/* Separate minimap overlay component */}
+      {/* Pass real entity positions to minimap overlay */}
       <MinimapOverlay 
         canvasRef={canvasRef}
         viewportOffset={viewportOffset}

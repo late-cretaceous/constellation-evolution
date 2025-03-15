@@ -10,6 +10,7 @@ import './EvolutionSimulator.css';
 
 /**
  * Main Evolution Simulator component with scrolling and zooming
+ * Updated with real entity positions for minimap
  */
 const EvolutionSimulator = () => {
   const canvasRef = useRef(null);
@@ -31,7 +32,10 @@ const EvolutionSimulator = () => {
               width={CANVAS_WIDTH} 
               height={CANVAS_HEIGHT}
               pixelRatio={pixelRatio}
-              canvasRef={canvasRef} 
+              canvasRef={canvasRef}
+              // Pass real entity positions to the canvas for minimap
+              organismPositions={simulation.organismPositions}
+              foodPositions={simulation.foodPositions}
             />
             <div className="canvas-instructions">
               <p>Drag to pan, scroll to zoom. Watch organisms evolve to seek food!</p>
