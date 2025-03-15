@@ -3,7 +3,7 @@ import { Component } from '../Component';
 
 /**
  * Component that stores the genetic information of an organism
- * Enhanced with more expressive genetic parameters
+ * Enhanced with more expressive genetic parameters and stronger mutations
  */
 export class GeneticComponent extends Component {
   /**
@@ -106,6 +106,7 @@ export class GeneticComponent extends Component {
 
   /**
    * Create a mutated copy with enhanced mutation capability
+   * Enhanced to create more significant changes between generations
    * @param {number} rate - Mutation rate
    * @returns {GeneticComponent} - A new genetic component with mutations
    */
@@ -114,39 +115,67 @@ export class GeneticComponent extends Component {
     const newJointPatterns = this.jointPatterns.map(pattern => [...pattern]);
     const newLimbPatterns = this.limbPatterns.map(pattern => [...pattern]);
     
-    // Mutation strategies for patterns
-    const patternStrategy = Math.random();
+    // Enhanced mutation approach with various strategies
+    const mutationStrategy = Math.random();
     
-    if (patternStrategy < 0.7) {
-      // Standard mutation: bit flips and small changes
-      this.standardPatternMutation(newJointPatterns, rate);
-      this.standardPatternMutation(newLimbPatterns, rate);
+    // Normal bit-flip mutations (70% probability)
+    if (mutationStrategy < 0.70) {
+      this.applyBitFlipMutations(newJointPatterns, rate * 1.5); // Increased mutation magnitude
+      this.applyBitFlipMutations(newLimbPatterns, rate * 1.5);
     }
-    else if (patternStrategy < 0.85) {
-      // Pattern reversal: chance to reverse an entire pattern
-      this.reversalPatternMutation(newJointPatterns, rate);
-      this.standardPatternMutation(newLimbPatterns, rate);
+    // Pattern reversal (10% probability)
+    else if (mutationStrategy < 0.80) {
+      this.applyPatternReversal(newJointPatterns, rate * 2);
+      this.applyBitFlipMutations(newLimbPatterns, rate);
     }
+    // Pattern shift (10% probability)
+    else if (mutationStrategy < 0.90) {
+      this.applyPatternShift(newJointPatterns, rate * 2);
+      this.applyPatternShift(newLimbPatterns, rate * 2);
+    }
+    // Complete pattern replacement (10% probability)
     else {
-      // Pattern crossover: shuffle segments between patterns
-      this.crossoverPatternMutation(newJointPatterns, rate);
-      this.standardPatternMutation(newLimbPatterns, rate);
+      this.applyPatternReplacement(newJointPatterns, rate * 3);
+      this.applyBitFlipMutations(newLimbPatterns, rate);
     }
     
-    // Mutate continuous parameters
-    let newPatternSpeed = this.patternSpeed + (Math.random() * 2 - 1) * rate * 2.0;
-    newPatternSpeed = Math.max(0.2, Math.min(4.0, newPatternSpeed)); // Clamp between 0.2-4.0
+    // Mutate continuous parameters with enhanced changes
+    // Increased range of variation for more visible differences
     
-    let newBodyPlanSeed = this.bodyPlanSeed + (Math.random() * 2 - 1) * rate * 0.3;
-    newBodyPlanSeed = Math.max(0, Math.min(1, newBodyPlanSeed)); // Clamp between 0-1
+    // For patternSpeed, use a more aggressive mutation approach
+    let newPatternSpeed;
+    if (Math.random() < rate * 2) {
+      // Occasional large change (25% chance at baseline rate)
+      newPatternSpeed = 0.2 + Math.random() * 3.8; // Complete re-roll
+    } else {
+      // Normal gradual change
+      const change = (Math.random() * 2 - 1) * rate * 3.0; // Larger changes
+      newPatternSpeed = this.patternSpeed + change;
+    }
+    // Ensure within bounds
+    newPatternSpeed = Math.max(0.2, Math.min(4.0, newPatternSpeed));
     
-    let newMorphologyFactor = this.morphologyFactor + (Math.random() * 2 - 1) * rate * 0.3;
+    // For bodyPlanSeed, more significant changes to body plan
+    let newBodyPlanSeed;
+    if (Math.random() < rate * 1.5) {
+      // Occasional complete re-roll (15% chance at baseline rate)
+      newBodyPlanSeed = Math.random();
+    } else {
+      // Normal gradual change
+      const change = (Math.random() * 2 - 1) * rate * 0.5; // Larger changes
+      newBodyPlanSeed = this.bodyPlanSeed + change;
+    }
+    // Ensure within bounds
+    newBodyPlanSeed = Math.max(0, Math.min(1, newBodyPlanSeed));
+    
+    // Similarly for other parameters, allow for more significant changes
+    let newMorphologyFactor = this.morphologyFactor + (Math.random() * 2 - 1) * rate * 0.5;
     newMorphologyFactor = Math.max(0, Math.min(1, newMorphologyFactor));
     
-    let newSymmetryFactor = this.symmetryFactor + (Math.random() * 2 - 1) * rate * 0.3;
+    let newSymmetryFactor = this.symmetryFactor + (Math.random() * 2 - 1) * rate * 0.5;
     newSymmetryFactor = Math.max(0, Math.min(1, newSymmetryFactor));
     
-    let newPhaseFactor = this.phaseFactor + (Math.random() * 2 - 1) * rate * 0.3;
+    let newPhaseFactor = this.phaseFactor + (Math.random() * 2 - 1) * rate * 0.5;
     newPhaseFactor = Math.max(0, Math.min(1, newPhaseFactor));
     
     // Create new component with mutated values
@@ -162,21 +191,23 @@ export class GeneticComponent extends Component {
   }
   
   /**
-   * Standard mutation: flip bits and adjust pattern length
+   * Apply bit-flip mutations to patterns
    * @private
+   * @param {Array} patterns - Array of patterns to mutate
+   * @param {number} rate - Mutation rate
    */
-  standardPatternMutation(patterns, rate) {
+  applyBitFlipMutations(patterns, rate) {
     for (let i = 0; i < patterns.length; i++) {
-      // Bit flip mutations
+      // Enhanced bit flip mutations with increased frequency
       for (let j = 0; j < patterns[i].length; j++) {
-        // Chance to flip a bit
-        if (Math.random() < rate) {
+        // Increased chance to flip a bit
+        if (Math.random() < rate * 1.2) {
           patterns[i][j] = 1 - patterns[i][j]; // Flip 0->1 or 1->0
         }
       }
       
-      // Pattern length mutations
-      if (Math.random() < rate * 0.5) {
+      // More frequent length mutations
+      if (Math.random() < rate * 0.8) {
         if (Math.random() < 0.5 && patterns[i].length > 4) {
           // Remove a random step
           const removeIndex = Math.floor(Math.random() * patterns[i].length);
@@ -192,64 +223,70 @@ export class GeneticComponent extends Component {
   }
   
   /**
-   * Reversal mutation: reverse an entire pattern
+   * Apply pattern reversal mutation
    * @private
+   * @param {Array} patterns - Array of patterns to mutate
+   * @param {number} rate - Mutation rate
    */
-  reversalPatternMutation(patterns, rate) {
+  applyPatternReversal(patterns, rate) {
     for (let i = 0; i < patterns.length; i++) {
-      // Chance to reverse the entire pattern
-      if (Math.random() < rate * 0.7) {
+      // Reverse entire pattern with higher probability
+      if (Math.random() < rate) {
         patterns[i].reverse();
       } else {
-        // Otherwise do standard mutation
-        this.standardPatternMutation([patterns[i]], rate);
+        // Otherwise do standard bit-flip mutation
+        this.applyBitFlipMutations([patterns[i]], rate);
       }
     }
   }
   
   /**
-   * Crossover mutation: shuffle segments between patterns
+   * Apply pattern shift mutation (rotate pattern values)
    * @private
+   * @param {Array} patterns - Array of patterns to mutate
+   * @param {number} rate - Mutation rate
    */
-  crossoverPatternMutation(patterns, rate) {
-    if (patterns.length < 2) {
-      this.standardPatternMutation(patterns, rate);
-      return;
+  applyPatternShift(patterns, rate) {
+    for (let i = 0; i < patterns.length; i++) {
+      if (Math.random() < rate && patterns[i].length > 1) {
+        // Determine amount to shift (1 to half the pattern length)
+        const maxShift = Math.max(1, Math.floor(patterns[i].length / 2));
+        const shiftAmount = 1 + Math.floor(Math.random() * maxShift);
+        
+        // Shift the pattern (rotate array)
+        const shiftRight = Math.random() < 0.5;
+        if (shiftRight) {
+          for (let j = 0; j < shiftAmount; j++) {
+            patterns[i].unshift(patterns[i].pop());
+          }
+        } else {
+          for (let j = 0; j < shiftAmount; j++) {
+            patterns[i].push(patterns[i].shift());
+          }
+        }
+      } else {
+        // Otherwise do standard bit-flip mutation
+        this.applyBitFlipMutations([patterns[i]], rate * 0.5);
+      }
     }
-    
-    // Select two random patterns to cross
-    const index1 = Math.floor(Math.random() * patterns.length);
-    let index2 = Math.floor(Math.random() * patterns.length);
-    while (index2 === index1) {
-      index2 = Math.floor(Math.random() * patterns.length);
-    }
-    
-    // Only do crossover with some probability
-    if (Math.random() < rate * 2) {
-      // Select crossover points
-      const pattern1 = patterns[index1];
-      const pattern2 = patterns[index2];
-      
-      const crossPoint1 = Math.floor(Math.random() * pattern1.length);
-      const crossPoint2 = Math.floor(Math.random() * pattern2.length);
-      
-      // Create new patterns after crossover
-      const newPattern1 = [
-        ...pattern1.slice(0, crossPoint1),
-        ...pattern2.slice(crossPoint2)
-      ];
-      
-      const newPattern2 = [
-        ...pattern2.slice(0, crossPoint2),
-        ...pattern1.slice(crossPoint1)
-      ];
-      
-      // Replace with crossed patterns
-      patterns[index1] = newPattern1;
-      patterns[index2] = newPattern2;
-    } else {
-      // Otherwise do standard mutation
-      this.standardPatternMutation(patterns, rate);
+  }
+  
+  /**
+   * Apply complete pattern replacement
+   * @private
+   * @param {Array} patterns - Array of patterns to mutate
+   * @param {number} rate - Mutation rate
+   */
+  applyPatternReplacement(patterns, rate) {
+    for (let i = 0; i < patterns.length; i++) {
+      if (Math.random() < rate) {
+        // Generate entirely new pattern
+        const newPattern = this.createRandomPatterns(1)[0];
+        patterns[i] = newPattern;
+      } else {
+        // Otherwise do standard bit-flip mutation with low rate
+        this.applyBitFlipMutations([patterns[i]], rate * 0.3);
+      }
     }
   }
   
