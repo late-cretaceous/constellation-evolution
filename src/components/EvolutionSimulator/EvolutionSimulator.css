@@ -6,13 +6,15 @@
   padding: 1rem;
   background-color: #121330;
   color: white;
-  height: 100%;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 .simulator-title {
   font-size: 1.5rem;
   font-weight: bold;
   margin-bottom: 1rem;
+  text-align: center;
 }
 
 /* Layout */
@@ -21,8 +23,11 @@
   flex-direction: column;
   width: 100%;
   gap: 1rem;
+  flex: 1;
+  max-height: calc(100vh - 4rem);
 }
 
+/* For larger screens, use a row layout */
 @media (min-width: 768px) {
   .simulator-layout {
     flex-direction: row;
@@ -32,46 +37,69 @@
 /* Main simulation area */
 .simulation-area {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for proper flexbox behavior */
+  width: 100%;
+}
+
+/* Canvas container */
+.canvas-container {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  background-color: #1a202c;
+  border-radius: 0.5rem;
+  border: 1px solid #4a5568;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Canvas */
 .simulation-canvas {
-  border: 1px solid #4a5568;
-  background-color: #1a202c;
-  width: 100%;
-  height: auto;
+  display: block;
   image-rendering: -webkit-optimize-contrast; /* Improves rendering on webkit browsers */
-  image-rendering: crisp-edges;              /* General improvement for pixel art */
-  -ms-interpolation-mode: nearest-neighbor;  /* IE support */
-  
-  /* Add a subtle shadow for depth */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  
-  /* Improve touch response on mobile */
-  touch-action: manipulation;
+  image-rendering: crisp-edges;               /* General improvement for pixel art */
+  -ms-interpolation-mode: nearest-neighbor;   /* IE support */
+  max-width: 100%;                           /* Ensure it never overflows */
+  max-height: 100%;                          /* Ensure it never overflows */
+  touch-action: manipulation;                /* Improve touch response on mobile */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);  /* Subtle shadow for depth */
 }
 
 /* Stats section */
 .stats-container {
   margin-top: 0.5rem;
+  background-color: #1a202c;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #4a5568;
 }
 
 .stats-row {
   display: flex;
   justify-content: space-between;
   margin-bottom: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .stats-values {
   display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .stats-value {
-  margin-right: 1rem;
+  white-space: nowrap;
 }
 
 .buttons-container {
   display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .button {
@@ -80,30 +108,52 @@
   cursor: pointer;
   border: none;
   font-size: 0.875rem;
+  font-weight: bold;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.button:active {
+  transform: translateY(1px);
 }
 
 .button-blue {
   background-color: #3182ce;
-  margin-right: 0.5rem;
+  color: white;
+}
+
+.button-blue:hover {
+  background-color: #2c5282;
 }
 
 .button-red {
   background-color: #e53e3e;
+  color: white;
+}
+
+.button-red:hover {
+  background-color: #c53030;
 }
 
 .joint-diversity {
   font-size: 0.875rem;
   color: #cbd5e0;
+  width: 100%;
+  text-align: center;
+  margin-top: 0.25rem;
 }
 
 /* Control panel */
 .control-panel {
   width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (min-width: 768px) {
   .control-panel {
     width: 16rem;
+    min-width: 16rem;
   }
 }
 
@@ -117,44 +167,94 @@
   margin-bottom: 0.5rem;
   cursor: pointer;
   color: white;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.help-toggle:hover {
+  background-color: #2d3748;
 }
 
 .help-content {
-  padding: 0.5rem;
+  padding: 0.75rem;
   background-color: #2d3748;
   border-radius: 0.25rem;
   font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .help-content p {
   margin-bottom: 0.5rem;
 }
 
+.help-content p:last-child {
+  margin-bottom: 0;
+}
+
 .help-content strong {
   font-weight: bold;
+  color: #90cdf4;
 }
 
 /* Controls */
 .controls-container {
-  margin-top: 1rem;
+  background-color: #1a202c;
+  border-radius: 0.5rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  border: 1px solid #4a5568;
 }
 
 .control-item {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.control-item:last-child {
+  margin-bottom: 0;
 }
 
 .control-label {
-  display: block;
+  display: flex;
+  justify-content: space-between;
   margin-bottom: 0.25rem;
+  font-weight: bold;
+  color: #e2e8f0;
 }
 
 .control-slider {
   width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #2d3748;
+  border-radius: 3px;
+  outline: none;
+}
+
+.control-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3182ce;
+  cursor: pointer;
+  border: 2px solid #90cdf4;
+}
+
+.control-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3182ce;
+  cursor: pointer;
+  border: 2px solid #90cdf4;
 }
 
 .control-value {
-  text-align: right;
+  font-size: 0.875rem;
+  color: #90cdf4;
 }

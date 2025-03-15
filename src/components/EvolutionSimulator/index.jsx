@@ -5,11 +5,10 @@ import SimulationCanvas from './SimulationCanvas';
 import SimulationControls from './SimulationControls';
 import SimulationStats from './SimulationStats';
 import HelpPanel from './HelpPanel';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../simulation/constants';
 import './EvolutionSimulator.css';
 
 /**
- * Main Evolution Simulator component with high-DPI support
+ * Main Evolution Simulator component with responsive canvas
  */
 const EvolutionSimulator = () => {
   const canvasRef = useRef(null);
@@ -22,16 +21,16 @@ const EvolutionSimulator = () => {
   
   return (
     <div className="simulator-container">
-      <h1 className="simulator-title">Dot Organism Evolution Simulator (ECS)</h1>
+      <h1 className="simulator-title">Dot Organism Evolution Simulator</h1>
       
       <div className="simulator-layout">
         <div className="simulation-area">
-          <SimulationCanvas 
-            width={CANVAS_WIDTH} 
-            height={CANVAS_HEIGHT}
-            pixelRatio={pixelRatio}
-            canvasRef={canvasRef} 
-          />
+          <div className="canvas-container">
+            <SimulationCanvas 
+              pixelRatio={pixelRatio}
+              canvasRef={canvasRef} 
+            />
+          </div>
           
           <SimulationStats 
             generation={simulation.generation}

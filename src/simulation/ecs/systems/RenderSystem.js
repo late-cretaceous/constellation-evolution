@@ -6,9 +6,11 @@ import { JointComponent } from '../components/JointComponent';
 import { OrganismComponent } from '../components/OrganismComponent';
 import { FitnessComponent } from '../components/FitnessComponent';
 import { FoodComponent } from '../components/FoodComponent';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants';
 
 /**
  * System that handles rendering entities on the canvas with high-DPI support
+ * and responsive scaling
  */
 export class RenderSystem extends System {
   /**
@@ -47,6 +49,9 @@ export class RenderSystem extends System {
   update(deltaTime) {
     if (!this.ctx) return;
     
+    // Get the simulation to display scaling factor
+    const scale = this.getSimulationScale();
+    
     // Cache canvas dimensions for calculations
     const canvasWidth = this.ctx.canvas.width / (this.ctx.pixelRatio || 1);
     const canvasHeight = this.ctx.canvas.height / (this.ctx.pixelRatio || 1);
@@ -55,6 +60,10 @@ export class RenderSystem extends System {
     this.ctx.fillStyle = this.backgroundColor;
     this.ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     
+    // Apply simulation to display scaling
+    this.ctx.save();
+    this.ctx.scale(scale, scale);
+    
     // Draw food with improved rendering
     const foodEntities = this.world.getEntitiesWithComponent(FoodComponent);
     this.renderFoodEntities(foodEntities);
@@ -62,6 +71,24 @@ export class RenderSystem extends System {
     // Draw organisms and joints with improved rendering
     const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
     this.renderOrganisms(organismEntities);
+    
+    // Restore original transform
+    this.ctx.restore();
+  }
+
+  /**
+   * Get the simulation to display scaling factor
+   * @returns {number} - The scaling factor
+   */
+  getSimulationScale() {
+    if (this.ctx.simulationScale) {
+      // Use the scale set by the canvas component
+      return this.ctx.simulationScale;
+    }
+    
+    // Fallback: calculate based on canvas size
+    const canvasWidth = this.ctx.canvas.width / (this.ctx.pixelRatio || 1);
+    return canvasWidth / CANVAS_WIDTH;
   }
 
   /**
