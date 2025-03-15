@@ -15,7 +15,7 @@ import {
 
 /**
  * System that handles organism reproduction and evolution
- * Updated to select for movement patterns that lead to food
+ * Updated for larger simulation area
  */
 export class EvolutionSystem extends System {
   /**
@@ -63,18 +63,35 @@ export class EvolutionSystem extends System {
   }
 
   /**
-   * Initialize the first generation of organisms
+   * Initialize the first generation of organisms with improved distribution
+   * for larger simulation area
    */
   initializeGeneration() {
     // Clear existing entities
     this.world.clear();
     this.generationCount = 0;
     
-    // Create initial organisms with random positions
+    // Divide the canvas into regions for better organism distribution
+    const regionSize = 300; // Size of each region
+    const numRegionsX = Math.ceil(CANVAS_WIDTH / regionSize);
+    const numRegionsY = Math.ceil(CANVAS_HEIGHT / regionSize);
+    
+    // Create initial organisms with distributed positions
     for (let i = 0; i < this.populationSize; i++) {
+      // Select a random region
+      const regionX = Math.floor(Math.random() * numRegionsX);
+      const regionY = Math.floor(Math.random() * numRegionsY);
+      
+      // Calculate position within region (with 10% padding)
+      const padding = regionSize * 0.1;
+      const regionStartX = regionX * regionSize + padding;
+      const regionStartY = regionY * regionSize + padding;
+      const regionWidth = Math.min(regionSize - padding * 2, CANVAS_WIDTH - regionStartX);
+      const regionHeight = Math.min(regionSize - padding * 2, CANVAS_HEIGHT - regionStartY);
+      
       const pos = new Vector2(
-        Math.random() * CANVAS_WIDTH,
-        Math.random() * CANVAS_HEIGHT
+        regionStartX + Math.random() * regionWidth,
+        regionStartY + Math.random() * regionHeight
       );
       
       // Random joint count
@@ -89,11 +106,41 @@ export class EvolutionSystem extends System {
   }
 
   /**
-   * Initialize food for a new generation
+   * Initialize food with improved distribution for larger simulation area
    */
   initializeFood() {
+    // Use quadrants to distribute food more evenly
+    const quadrantWidth = CANVAS_WIDTH / 2;
+    const quadrantHeight = CANVAS_HEIGHT / 2;
+    
+    // Distribute food among quadrants
     for (let i = 0; i < this.foodAmount; i++) {
-      this.createFoodEntity();
+      // Determine which quadrant to place food
+      const quadrant = Math.floor(Math.random() * 4);
+      
+      // Calculate position within quadrant
+      let x, y;
+      switch (quadrant) {
+        case 0: // Top-left
+          x = Math.random() * quadrantWidth;
+          y = Math.random() * quadrantHeight;
+          break;
+        case 1: // Top-right
+          x = quadrantWidth + Math.random() * quadrantWidth;
+          y = Math.random() * quadrantHeight;
+          break;
+        case 2: // Bottom-left
+          x = Math.random() * quadrantWidth;
+          y = quadrantHeight + Math.random() * quadrantHeight;
+          break;
+        case 3: // Bottom-right
+          x = quadrantWidth + Math.random() * quadrantWidth;
+          y = quadrantHeight + Math.random() * quadrantHeight;
+          break;
+      }
+      
+      // Create food entity
+      this.entityFactory.createFood(x, y);
     }
   }
 
@@ -102,9 +149,26 @@ export class EvolutionSystem extends System {
    * @returns {Entity} - The created food entity
    */
   createFoodEntity() {
+    // Instead of completely random position, divide the canvas into a grid
+    // and select a random cell to place the food in
+    const gridSize = 200; // Size of each grid cell
+    const numGridX = Math.ceil(CANVAS_WIDTH / gridSize);
+    const numGridY = Math.ceil(CANVAS_HEIGHT / gridSize);
+    
+    // Select a random grid cell
+    const gridX = Math.floor(Math.random() * numGridX);
+    const gridY = Math.floor(Math.random() * numGridY);
+    
+    // Calculate position within grid cell (with padding)
+    const padding = gridSize * 0.1;
+    const gridStartX = gridX * gridSize + padding;
+    const gridStartY = gridY * gridSize + padding;
+    const gridWidth = Math.min(gridSize - padding * 2, CANVAS_WIDTH - gridStartX);
+    const gridHeight = Math.min(gridSize - padding * 2, CANVAS_HEIGHT - gridStartY);
+    
     const pos = new Vector2(
-      Math.random() * CANVAS_WIDTH,
-      Math.random() * CANVAS_HEIGHT
+      gridStartX + Math.random() * gridWidth,
+      gridStartY + Math.random() * gridHeight
     );
     
     return this.entityFactory.createFood(pos.x, pos.y);
@@ -231,6 +295,7 @@ export class EvolutionSystem extends System {
 
   /**
    * Create a child organism from a parent with mutations
+   * Updated to distribute across the larger simulation area
    * @param {Entity} organismEntity - The parent organism entity
    * @param {number} mutationRate - Rate of genetic mutation
    * @returns {Entity} - The newly created child organism
@@ -238,11 +303,33 @@ export class EvolutionSystem extends System {
   reproduceOrganism(organismEntity, mutationRate) {
     const genetics = organismEntity.getComponent(GeneticComponent);
     
-    // Random position anywhere on the canvas
-    const pos = new Vector2(
-      Math.random() * CANVAS_WIDTH,
-      Math.random() * CANVAS_HEIGHT
-    );
+    // Choose a random position anywhere on the canvas
+    // But use a method that encourages some spreading out
+    const randomQuadrant = Math.floor(Math.random() * 4);
+    const quadrantWidth = CANVAS_WIDTH / 2;
+    const quadrantHeight = CANVAS_HEIGHT / 2;
+    
+    let x, y;
+    switch (randomQuadrant) {
+      case 0: // Top-left
+        x = Math.random() * quadrantWidth;
+        y = Math.random() * quadrantHeight;
+        break;
+      case 1: // Top-right
+        x = quadrantWidth + Math.random() * quadrantWidth;
+        y = Math.random() * quadrantHeight;
+        break;
+      case 2: // Bottom-left
+        x = Math.random() * quadrantWidth;
+        y = quadrantHeight + Math.random() * quadrantHeight;
+        break;
+      case 3: // Bottom-right
+        x = quadrantWidth + Math.random() * quadrantWidth;
+        y = quadrantHeight + Math.random() * quadrantHeight;
+        break;
+    }
+    
+    const pos = new Vector2(x, y);
     
     // Mutate genes
     const childGenetics = genetics.mutate(mutationRate);

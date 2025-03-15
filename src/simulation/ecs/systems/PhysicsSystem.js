@@ -9,7 +9,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants';
 
 /**
  * System that handles physics calculations and movement
- * Enhanced with more effective movement dynamics
+ * Enhanced with more effective movement dynamics for larger world area
  */
 export class PhysicsSystem extends System {
   /**
@@ -19,15 +19,22 @@ export class PhysicsSystem extends System {
   constructor(world) {
     super(world);
     
-    // Physics simulation constants - adjusted for more effective movement
-    this.velocityMultiplier = 1.4;    // Multiplier for velocity (overall speed factor)
-    this.forceMagnifier = 2.5;        // Multiplier for forces (power of movements)
+    // Physics simulation constants - adjusted for more effective movement in larger area
+    this.velocityMultiplier = 1.6;    // Increased for larger area (was 1.4)
+    this.forceMagnifier = 2.8;        // Increased force multiplier (was 2.5)
     this.damping = 0.95;              // Less damping for more fluid movement (0.98 originally)
-    this.maxVelocity = 45.0;          // Higher max velocity (30.0 originally)
-    this.bounceEnergyRetention = 0.9; // Energy retained on bounce (0.8 originally)
+    this.maxVelocity = 60.0;          // Higher max velocity for larger area (was 45.0)
+    this.bounceEnergyRetention = 0.9; // Energy retained on bounce
+    
+    // Random impulse settings - to prevent organisms from getting stuck in larger area
     this.applyImpulse = true;         // Apply random impulses occasionally
-    this.impulseStrength = 15.0;      // Strength of random impulses
-    this.impulseProbability = 0.001;  // Probability of impulse per frame per entity
+    this.impulseStrength = 20.0;      // Increased strength of random impulses (was 15.0)
+    this.impulseProbability = 0.002;  // Higher probability for larger area (was 0.001)
+    
+    // Spatial partitioning for large world
+    this.useQuadtree = false;         // Set to true to enable spatial acceleration for very large worlds
+    this.quadtreeMaxDepth = 5;        // Maximum depth of the quadtree
+    this.quadtreeMaxObjects = 10;     // Maximum objects per quadtree node
   }
 
   /**
@@ -56,13 +63,24 @@ export class PhysicsSystem extends System {
         }
         
         // Apply occasional random impulse to help "unstick" organisms
+        // More important in larger area to avoid getting stuck at the edges
         if (this.applyImpulse && Math.random() < this.impulseProbability) {
-          const angle = Math.random() * Math.PI * 2;
-          const impulse = new Vector2(
-            Math.cos(angle) * this.impulseStrength,
-            Math.sin(angle) * this.impulseStrength
-          );
-          physics.force = physics.force.add(impulse);
+          // If near edge, apply impulse away from edge
+          const nearEdge = this.isNearEdge(position.position.x, position.position.y, 50);
+          
+          if (nearEdge) {
+            // Apply impulse away from nearest edge
+            const impulse = this.getEdgeAvoidanceImpulse(position.position.x, position.position.y);
+            physics.force = physics.force.add(impulse.multiply(this.impulseStrength * 1.5));
+          } else {
+            // Regular random impulse in open space
+            const angle = Math.random() * Math.PI * 2;
+            const impulse = new Vector2(
+              Math.cos(angle) * this.impulseStrength,
+              Math.sin(angle) * this.impulseStrength
+            );
+            physics.force = physics.force.add(impulse);
+          }
         }
         
         // Calculate acceleration (F = ma) with force multiplier
@@ -118,6 +136,50 @@ export class PhysicsSystem extends System {
         // Reset force for next update
         physics.force = new Vector2(0, 0);
       }
+    }
+  }
+  
+  /**
+   * Check if a position is near an edge of the simulation area
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   * @param {number} threshold - Distance threshold to consider "near edge"
+   * @returns {boolean} - True if position is near an edge
+   */
+  isNearEdge(x, y, threshold) {
+    return (
+      x < threshold || 
+      x > CANVAS_WIDTH - threshold || 
+      y < threshold || 
+      y > CANVAS_HEIGHT - threshold
+    );
+  }
+  
+  /**
+   * Generate an impulse vector pointing away from the nearest edge
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   * @returns {Vector2} - Impulse vector
+   */
+  getEdgeAvoidanceImpulse(x, y) {
+    // Calculate distance to each edge
+    const distLeft = x;
+    const distRight = CANVAS_WIDTH - x;
+    const distTop = y;
+    const distBottom = CANVAS_HEIGHT - y;
+    
+    // Find the nearest edge
+    const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+    
+    // Create impulse away from nearest edge
+    if (minDist === distLeft) {
+      return new Vector2(1, 0); // Right impulse
+    } else if (minDist === distRight) {
+      return new Vector2(-1, 0); // Left impulse
+    } else if (minDist === distTop) {
+      return new Vector2(0, 1); // Down impulse
+    } else {
+      return new Vector2(0, -1); // Up impulse
     }
   }
 }

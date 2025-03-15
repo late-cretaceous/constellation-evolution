@@ -5,16 +5,17 @@ import SimulationCanvas from './SimulationCanvas';
 import SimulationControls from './SimulationControls';
 import SimulationStats from './SimulationStats';
 import HelpPanel from './HelpPanel';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../simulation/constants';
 import './EvolutionSimulator.css';
 
 /**
- * Main Evolution Simulator component with responsive canvas
+ * Main Evolution Simulator component with scrolling and zooming
  */
 const EvolutionSimulator = () => {
   const canvasRef = useRef(null);
   
-  // Get device pixel ratio for high-DPI rendering (default to 2 for better quality)
-  const [pixelRatio] = useState(() => Math.max(2, window.devicePixelRatio || 1));
+  // Get device pixel ratio for high-DPI rendering (default to 1.5 for better performance)
+  const [pixelRatio] = useState(() => Math.min(1.5, window.devicePixelRatio || 1));
   
   // Use the ECS simulation hook
   const simulation = useECSSimulation(canvasRef);
@@ -25,11 +26,16 @@ const EvolutionSimulator = () => {
       
       <div className="simulator-layout">
         <div className="simulation-area">
-          <div className="canvas-container">
+          <div className="canvas-wrapper">
             <SimulationCanvas 
+              width={CANVAS_WIDTH} 
+              height={CANVAS_HEIGHT}
               pixelRatio={pixelRatio}
               canvasRef={canvasRef} 
             />
+            <div className="canvas-instructions">
+              <p>Drag to pan, scroll to zoom. Watch organisms evolve to seek food!</p>
+            </div>
           </div>
           
           <SimulationStats 

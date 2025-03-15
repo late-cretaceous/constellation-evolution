@@ -1,116 +1,235 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../simulation/constants';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from '../../simulation/constants';
 
 /**
- * The canvas component for rendering the simulation with high-DPI support and responsive sizing
+ * The canvas component for rendering the simulation with high-DPI support and scrolling
+ * Enhanced with responsive sizing and improved rendering
  * @param {Object} props - Component props
+ * @param {number} props.width - Logical canvas width
+ * @param {number} props.height - Logical canvas height
  * @param {number} props.pixelRatio - Pixel ratio for high-DPI rendering (default: devicePixelRatio)
  * @param {React.RefObject} props.canvasRef - Reference to the canvas element
  */
-const SimulationCanvas = ({ pixelRatio = window.devicePixelRatio || 1, canvasRef }) => {
-  // Track canvas dimensions for responsive sizing
-  const [dimensions, setDimensions] = useState({
-    width: CANVAS_WIDTH,
-    height: CANVAS_HEIGHT
-  });
-
-  // Calculate optimal canvas size based on container
-  const calculateCanvasSize = useCallback(() => {
-    if (!canvasRef.current) return;
-
-    // Get the container dimensions
-    const container = canvasRef.current.parentElement;
-    const containerWidth = container.clientWidth;
+const SimulationCanvas = ({ width, height, pixelRatio = window.devicePixelRatio || 1, canvasRef }) => {
+  // Viewport state
+  const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(DEFAULT_SCALE);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [initialOffset, setInitialOffset] = useState({ x: 0, y: 0 });
+  
+  // Viewport container ref
+  const containerRef = useRef(null);
+  
+  // Apply viewport transform to canvas context
+  const applyViewportTransform = useCallback((ctx) => {
+    if (!ctx) return;
     
-    // Get the available height (account for stats display below the canvas)
-    // Using 80% of the viewport height as a reasonable estimate for available space
-    // This prevents the canvas from being too tall
-    const viewportHeight = window.innerHeight;
-    const availableHeight = Math.min(
-      viewportHeight * 0.8, 
-      container.clientHeight || viewportHeight * 0.8
-    );
+    // Reset any existing transforms
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     
-    // Calculate the maximum possible size while maintaining aspect ratio
-    const aspectRatio = CANVAS_WIDTH / CANVAS_HEIGHT;
-    
-    let newWidth, newHeight;
-    
-    // If container is wider than needed for full height
-    if (containerWidth / availableHeight > aspectRatio) {
-      // Height constrained
-      newHeight = availableHeight;
-      newWidth = newHeight * aspectRatio;
-    } else {
-      // Width constrained
-      newWidth = containerWidth;
-      newHeight = newWidth / aspectRatio;
-    }
-    
-    // Update dimensions if changed
-    if (newWidth !== dimensions.width || newHeight !== dimensions.height) {
-      setDimensions({
-        width: newWidth,
-        height: newHeight
-      });
-    }
-  }, [canvasRef, dimensions.width, dimensions.height]);
-
-  // Handle window resize
-  useEffect(() => {
-    // Initial calculation
-    calculateCanvasSize();
-    
-    // Add resize listener
-    window.addEventListener('resize', calculateCanvasSize);
-    
-    // Clean up
-    return () => {
-      window.removeEventListener('resize', calculateCanvasSize);
-    };
-  }, [calculateCanvasSize]);
-
-  // Set up high-DPI canvas scaling when dimensions change
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    // Set the canvas dimensions accounting for device pixel ratio
-    canvas.width = dimensions.width * pixelRatio;
-    canvas.height = dimensions.height * pixelRatio;
-    
-    // Scale all canvas operations by pixel ratio
+    // Apply DPI scaling
     ctx.scale(pixelRatio, pixelRatio);
     
-    // Store the pixel ratio and logical dimensions on the context for the render system
+    // Apply viewport transform
+    ctx.translate(viewportOffset.x, viewportOffset.y);
+    ctx.scale(scale, scale);
+    
+    // Store viewport info on context for render system to use
     ctx.pixelRatio = pixelRatio;
-    ctx.logicalWidth = CANVAS_WIDTH;
-    ctx.logicalHeight = CANVAS_HEIGHT;
-    
-    // Set scaling factor between simulation coordinates and display coordinates
-    ctx.simulationScale = dimensions.width / CANVAS_WIDTH;
-    
-    // Reset rendering when component unmounts or dimensions change
-    return () => {
-      if (ctx) {
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-      }
+    ctx.viewportOffset = viewportOffset;
+    ctx.viewportScale = scale;
+  }, [pixelRatio, viewportOffset, scale]);
+  
+  // Resize canvas on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (!canvasRef.current || !containerRef.current) return;
+      
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      const ctx = canvas.getContext('2d');
+      
+      // Update canvas size to match container size
+      const displayWidth = container.clientWidth;
+      const displayHeight = container.clientHeight;
+      
+      // Set the canvas dimensions accounting for device pixel ratio
+      canvas.width = displayWidth * pixelRatio;
+      canvas.height = displayHeight * pixelRatio;
+      
+      // Apply the viewport transform
+      applyViewportTransform(ctx);
     };
-  }, [dimensions.width, dimensions.height, pixelRatio, canvasRef]);
-
+    
+    // Initial setup
+    handleResize();
+    
+    // Add resize event listener
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [applyViewportTransform, pixelRatio]);
+  
+  // Center the viewport initially
+  useEffect(() => {
+    if (!canvasRef.current || !containerRef.current) return;
+    
+    // Initially center the viewport to show the middle of the simulation area
+    const container = containerRef.current;
+    const initialX = (container.clientWidth / scale - width) / 2;
+    const initialY = (container.clientHeight / scale - height) / 2;
+    
+    setViewportOffset({ x: initialX, y: initialY });
+  }, [width, height, scale]);
+  
+  // Apply viewport transform when it changes
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext('2d');
+    applyViewportTransform(ctx);
+  }, [viewportOffset, scale, applyViewportTransform]);
+  
+  // Handle mouse down to start dragging
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setInitialOffset({ ...viewportOffset });
+  };
+  
+  // Handle mouse move to update viewport while dragging
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    
+    const deltaX = (e.clientX - dragStart.x) / scale;
+    const deltaY = (e.clientY - dragStart.y) / scale;
+    
+    setViewportOffset({
+      x: initialOffset.x + deltaX,
+      y: initialOffset.y + deltaY
+    });
+  };
+  
+  // Handle mouse up to stop dragging
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+  
+  // Handle mouse leave to stop dragging
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+  
+  // Handle mouse wheel to zoom in/out
+  const handleWheel = (e) => {
+    e.preventDefault();
+    
+    // Calculate new scale
+    const zoomFactor = 0.1;
+    const delta = e.deltaY < 0 ? zoomFactor : -zoomFactor;
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale + delta));
+    
+    if (newScale !== scale) {
+      // Calculate mouse position relative to canvas
+      const rect = canvasRef.current.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Calculate old world position
+      const worldX = (mouseX / scale) - viewportOffset.x;
+      const worldY = (mouseY / scale) - viewportOffset.y;
+      
+      // Calculate new viewport offset to keep mouse position fixed
+      const newOffsetX = -(worldX * newScale - mouseX);
+      const newOffsetY = -(worldY * newScale - mouseY);
+      
+      // Update state
+      setScale(newScale);
+      setViewportOffset({ x: newOffsetX, y: newOffsetY });
+    }
+  };
+  
+  // Touch event handlers for mobile
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      // Single touch for panning
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStart({ x: touch.clientX, y: touch.clientY });
+      setInitialOffset({ ...viewportOffset });
+    }
+  };
+  
+  const handleTouchMove = (e) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const deltaX = (touch.clientX - dragStart.x) / scale;
+    const deltaY = (touch.clientY - dragStart.y) / scale;
+    
+    setViewportOffset({
+      x: initialOffset.x + deltaX,
+      y: initialOffset.y + deltaY
+    });
+  };
+  
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+  
   return (
-    <canvas
-      ref={canvasRef}
-      // Set CSS dimensions to calculated size
-      style={{
-        width: `${dimensions.width}px`,
-        height: `${dimensions.height}px`,
-        maxWidth: '100%'
+    <div 
+      ref={containerRef}
+      className="simulation-canvas-container"
+      style={{ 
+        width: '100%', 
+        height: '70vh', // Use viewport height for better responsiveness
+        minHeight: '400px', // Set a minimum height
+        position: 'relative',
+        overflow: 'hidden'
       }}
-      className="simulation-canvas"
-    />
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          cursor: isDragging ? 'grabbing' : 'grab'
+        }}
+        className="simulation-canvas"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      />
+      
+      {/* Moved the viewport controls outside the canvas for better positioning */}
+      <div className="viewport-controls">
+        <button onClick={() => setScale(Math.min(MAX_SCALE, scale + 0.1))}>+</button>
+        <button onClick={() => setScale(Math.max(MIN_SCALE, scale - 0.1))}>-</button>
+        <button 
+          onClick={() => {
+            setScale(DEFAULT_SCALE);
+            // Center the viewport
+            if (containerRef.current) {
+              const container = containerRef.current;
+              const initialX = (container.clientWidth / DEFAULT_SCALE - width) / 2;
+              const initialY = (container.clientHeight / DEFAULT_SCALE - height) / 2;
+              setViewportOffset({ x: initialX, y: initialY });
+            }
+          }}
+        >
+          Reset
+        </button>
+      </div>
+    </div>
   );
 };
 
