@@ -1,22 +1,32 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import MinimapOverlay from './MinimapOverlay';
 import { DEFAULT_SCALE, MIN_SCALE, MAX_SCALE } from '../../simulation/constants';
 
 /**
  * The canvas component for rendering the simulation with high-DPI support and scrolling
- * Enhanced with responsive sizing and improved rendering
+ * Enhanced with responsive sizing, improved rendering, and separate minimap
  * @param {Object} props - Component props
  * @param {number} props.width - Logical canvas width
  * @param {number} props.height - Logical canvas height
  * @param {number} props.pixelRatio - Pixel ratio for high-DPI rendering (default: devicePixelRatio)
  * @param {React.RefObject} props.canvasRef - Reference to the canvas element
  */
-const SimulationCanvas = ({ width, height, pixelRatio = window.devicePixelRatio || 1, canvasRef }) => {
+const SimulationCanvas = ({ 
+  width, 
+  height, 
+  pixelRatio = window.devicePixelRatio || 1, 
+  canvasRef 
+}) => {
   // Viewport state
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [initialOffset, setInitialOffset] = useState({ x: 0, y: 0 });
+  
+  // Track entity positions for minimap (simplified version for demo)
+  const [organismPositions, setOrganismPositions] = useState([]);
+  const [foodPositions, setFoodPositions] = useState([]);
   
   // Viewport container ref
   const containerRef = useRef(null);
@@ -39,7 +49,30 @@ const SimulationCanvas = ({ width, height, pixelRatio = window.devicePixelRatio 
     ctx.pixelRatio = pixelRatio;
     ctx.viewportOffset = viewportOffset;
     ctx.viewportScale = scale;
+    
+    // Update minimap display - in a real implementation, this would come from the ECS world
+    // This is just a placeholder for demonstration
   }, [pixelRatio, viewportOffset, scale]);
+  
+  // Update entity positions for minimap (in a real implementation, this would come from the ECS world)
+  useEffect(() => {
+    // This is just a placeholder - in a real implementation, these positions would come from the world
+    const simulationInterval = setInterval(() => {
+      // Fake organism positions for demo purposes
+      setOrganismPositions(Array.from({ length: 10 }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height
+      })));
+      
+      // Fake food positions for demo purposes
+      setFoodPositions(Array.from({ length: 20 }, () => ({
+        x: Math.random() * width,
+        y: Math.random() * height
+      })));
+    }, 2000);
+    
+    return () => clearInterval(simulationInterval);
+  }, [width, height]);
   
   // Resize canvas on window resize
   useEffect(() => {
@@ -180,6 +213,17 @@ const SimulationCanvas = ({ width, height, pixelRatio = window.devicePixelRatio 
     setIsDragging(false);
   };
   
+  // Reset viewport to center
+  const resetViewport = () => {
+    setScale(DEFAULT_SCALE);
+    if (containerRef.current) {
+      const container = containerRef.current;
+      const initialX = (container.clientWidth / DEFAULT_SCALE - width) / 2;
+      const initialY = (container.clientHeight / DEFAULT_SCALE - height) / 2;
+      setViewportOffset({ x: initialX, y: initialY });
+    }
+  };
+  
   return (
     <div 
       ref={containerRef}
@@ -210,24 +254,20 @@ const SimulationCanvas = ({ width, height, pixelRatio = window.devicePixelRatio 
         onTouchEnd={handleTouchEnd}
       />
       
-      {/* Moved the viewport controls outside the canvas for better positioning */}
+      {/* Separate minimap overlay component */}
+      <MinimapOverlay 
+        canvasRef={canvasRef}
+        viewportOffset={viewportOffset}
+        viewportScale={scale}
+        organismPositions={organismPositions}
+        foodPositions={foodPositions}
+      />
+      
+      {/* Viewport controls */}
       <div className="viewport-controls">
         <button onClick={() => setScale(Math.min(MAX_SCALE, scale + 0.1))}>+</button>
         <button onClick={() => setScale(Math.max(MIN_SCALE, scale - 0.1))}>-</button>
-        <button 
-          onClick={() => {
-            setScale(DEFAULT_SCALE);
-            // Center the viewport
-            if (containerRef.current) {
-              const container = containerRef.current;
-              const initialX = (container.clientWidth / DEFAULT_SCALE - width) / 2;
-              const initialY = (container.clientHeight / DEFAULT_SCALE - height) / 2;
-              setViewportOffset({ x: initialX, y: initialY });
-            }
-          }}
-        >
-          Reset
-        </button>
+        <button onClick={resetViewport}>Reset</button>
       </div>
     </div>
   );

@@ -84,9 +84,6 @@ export class RenderSystem extends System {
     // Draw organisms and joints with improved rendering
     const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
     this.renderOrganisms(organismEntities, viewportBounds);
-    
-    // Draw mini-map if enabled
-    this.renderMiniMap(organismEntities, foodEntities, viewportBounds, canvasWidth, canvasHeight);
   }
   
   /**
@@ -137,118 +134,6 @@ export class RenderSystem extends System {
       y + radius >= bounds.top &&
       y - radius <= bounds.bottom
     );
-  }
-  
-  /**
-   * Render a mini-map in the corner of the screen
-   * @param {Entity[]} organismEntities - Organism entities
-   * @param {Entity[]} foodEntities - Food entities
-   * @param {Object} viewportBounds - Current viewport bounds
-   * @param {number} canvasWidth - Canvas width
-   * @param {number} canvasHeight - Canvas height
-   */
-  renderMiniMap(organismEntities, foodEntities, viewportBounds, canvasWidth, canvasHeight) {
-    // Minimap should be at most 15% of the smaller dimension
-    const maxSize = Math.min(canvasWidth, canvasHeight) * 0.15;
-    const mapSize = Math.min(150, maxSize);
-    const mapMargin = 10;
-    
-    // Position in the bottom-right corner
-    const mapX = canvasWidth - mapSize - mapMargin;
-    const mapY = canvasHeight - mapSize - mapMargin;
-    
-    // Calculate map scale to fit the entire simulation area
-    const mapScale = mapSize / Math.max(CANVAS_WIDTH, CANVAS_HEIGHT);
-    
-    // Save context state
-    this.ctx.save();
-    
-    // Reset transform to draw in screen space
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    
-    // Draw mini-map background with transparency
-    this.ctx.fillStyle = 'rgba(0, 0, 20, 0.7)';
-    this.ctx.strokeStyle = 'rgba(100, 100, 255, 0.7)';
-    this.ctx.lineWidth = 1;
-    this.ctx.beginPath();
-    this.ctx.rect(mapX, mapY, mapSize, mapSize);
-    this.ctx.fill();
-    this.ctx.stroke();
-    
-    // Draw simulation area outline
-    this.ctx.strokeStyle = 'rgba(80, 80, 255, 0.8)';
-    this.ctx.lineWidth = 0.5;
-    this.ctx.strokeRect(
-      mapX, 
-      mapY, 
-      CANVAS_WIDTH * mapScale, 
-      CANVAS_HEIGHT * mapScale
-    );
-    
-    // Draw current viewport area
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(
-      mapX + (viewportBounds.left + this.cullingPadding) * mapScale,
-      mapY + (viewportBounds.top + this.cullingPadding) * mapScale,
-      (viewportBounds.right - viewportBounds.left - this.cullingPadding * 2) * mapScale,
-      (viewportBounds.bottom - viewportBounds.top - this.cullingPadding * 2) * mapScale
-    );
-    
-    // Draw organisms as tiny dots
-    for (const organismEntity of organismEntities) {
-      const organism = organismEntity.getComponent(OrganismComponent);
-      let centerX = 0;
-      let centerY = 0;
-      let count = 0;
-      
-      for (const jointId of organism.jointIds) {
-        const jointEntity = this.world.getEntity(jointId);
-        if (!jointEntity) continue;
-        
-        const position = jointEntity.getComponent(PositionComponent);
-        centerX += position.position.x;
-        centerY += position.position.y;
-        count++;
-      }
-      
-      if (count > 0) {
-        centerX /= count;
-        centerY /= count;
-        
-        this.ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
-        this.ctx.beginPath();
-        this.ctx.arc(
-          mapX + centerX * mapScale, 
-          mapY + centerY * mapScale, 
-          1.5, 0, Math.PI * 2
-        );
-        this.ctx.fill();
-      }
-    }
-    
-    // Draw food as tiny yellow dots
-    for (const foodEntity of foodEntities) {
-      const position = foodEntity.getComponent(PositionComponent);
-      
-      this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
-      this.ctx.beginPath();
-      this.ctx.arc(
-        mapX + position.position.x * mapScale, 
-        mapY + position.position.y * mapScale, 
-        0.8, 0, Math.PI * 2
-      );
-      this.ctx.fill();
-    }
-    
-    // Add label to the minimap
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    this.ctx.font = '8px Arial';
-    this.ctx.textAlign = 'right';
-    this.ctx.fillText('Map', mapX + mapSize - 4, mapY + 10);
-    
-    // Restore context state
-    this.ctx.restore();
   }
 
   /**
