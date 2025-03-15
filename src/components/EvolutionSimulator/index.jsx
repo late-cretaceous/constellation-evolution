@@ -1,6 +1,6 @@
 // src/components/EvolutionSimulator/index.jsx
-import React, { useRef } from 'react';
-import useECSSimulation from '../../hooks/useECSSimulation';  // Update this import
+import React, { useRef, useState } from 'react';
+import useECSSimulation from '../../hooks/useECSSimulation';
 import SimulationCanvas from './SimulationCanvas';
 import SimulationControls from './SimulationControls';
 import SimulationStats from './SimulationStats';
@@ -8,10 +8,16 @@ import HelpPanel from './HelpPanel';
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../simulation/constants';
 import './EvolutionSimulator.css';
 
+/**
+ * Main Evolution Simulator component with high-DPI support
+ */
 const EvolutionSimulator = () => {
   const canvasRef = useRef(null);
   
-  // Use the ECS simulation hook instead of the original
+  // Get device pixel ratio for high-DPI rendering (default to 2 for better quality)
+  const [pixelRatio] = useState(() => Math.max(2, window.devicePixelRatio || 1));
+  
+  // Use the ECS simulation hook
   const simulation = useECSSimulation(canvasRef);
   
   return (
@@ -22,7 +28,8 @@ const EvolutionSimulator = () => {
         <div className="simulation-area">
           <SimulationCanvas 
             width={CANVAS_WIDTH} 
-            height={CANVAS_HEIGHT} 
+            height={CANVAS_HEIGHT}
+            pixelRatio={pixelRatio}
             canvasRef={canvasRef} 
           />
           

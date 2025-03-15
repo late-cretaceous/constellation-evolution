@@ -39,6 +39,16 @@
   border: 1px solid #4a5568;
   background-color: #1a202c;
   width: 100%;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast; /* Improves rendering on webkit browsers */
+  image-rendering: crisp-edges;              /* General improvement for pixel art */
+  -ms-interpolation-mode: nearest-neighbor;  /* IE support */
+  
+  /* Add a subtle shadow for depth */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  
+  /* Improve touch response on mobile */
+  touch-action: manipulation;
 }
 
 /* Stats section */
