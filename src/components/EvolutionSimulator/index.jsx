@@ -56,6 +56,7 @@ const EvolutionSimulator = () => {
             showRestartConfirmation={simulation.showRestartConfirmation}
             onConfirmRestart={simulation.confirmRestartSimulation}
             onCancelRestart={simulation.cancelRestartSimulation}
+            lastAutosaveTime={simulation.lastAutosaveTime}
           />
         </div>
         

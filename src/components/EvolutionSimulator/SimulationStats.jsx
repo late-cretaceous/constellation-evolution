@@ -2,7 +2,7 @@ import React from 'react';
 
 /**
  * Displays simulation statistics and control buttons
- * Enhanced with restart confirmation dialog
+ * Enhanced with restart confirmation dialog and autosave indicator
  */
 const SimulationStats = ({ 
   generation, 
@@ -12,8 +12,31 @@ const SimulationStats = ({
   onRestartSimulation,
   showRestartConfirmation,
   onConfirmRestart,
-  onCancelRestart
+  onCancelRestart,
+  lastAutosaveTime
 }) => {
+  // Format the last autosave time
+  const formatLastSaveTime = () => {
+    if (!lastAutosaveTime) return 'Not saved yet';
+    
+    const now = new Date();
+    const diffMs = now - lastAutosaveTime;
+    
+    // If less than a minute, show "just now"
+    if (diffMs < 60000) {
+      return 'Just now';
+    }
+    
+    // If less than an hour, show minutes
+    if (diffMs < 3600000) {
+      const minutes = Math.floor(diffMs / 60000);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+    }
+    
+    // Format as time
+    return lastAutosaveTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  
   return (
     <div className="stats-container">
       <div className="stats-row">
@@ -55,8 +78,13 @@ const SimulationStats = ({
           )}
         </div>
       </div>
-      <div className="joint-diversity">
-        Joint Diversity: Min {stats.minJoints} | Avg {stats.avgJoints} | Max {stats.maxJoints}
+      <div className="stats-details">
+        <div className="joint-diversity">
+          Joint Diversity: Min {stats.minJoints} | Avg {stats.avgJoints} | Max {stats.maxJoints}
+        </div>
+        <div className="autosave-info">
+          <span className="autosave-icon">💾</span> Last autosave: {formatLastSaveTime()}
+        </div>
       </div>
       {showRestartConfirmation && (
         <div className="restart-warning">

@@ -48,6 +48,7 @@ export function useECSSimulation(canvasRef) {
   const [needsRestart, setNeedsRestart] = useState(false);
   const [showRestartConfirmation, setShowRestartConfirmation] = useState(false);
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false);
+  const [lastAutosaveTime, setLastAutosaveTime] = useState(null);
   
   // Entity position tracking for minimap
   const [organismPositions, setOrganismPositions] = useState([]);
@@ -113,8 +114,10 @@ export function useECSSimulation(canvasRef) {
   const saveCurrentState = () => {
     if (!simulationInitializedRef.current) return;
     
+    const now = new Date();
+    
     const state = {
-      timestamp: Date.now(),
+      timestamp: now.getTime(),
       generation: generationRef.current,
       stats: statsRef.current,
       config: {
@@ -126,7 +129,13 @@ export function useECSSimulation(canvasRef) {
       // Not saving organisms or food positions to avoid freezing issues
     };
     
-    saveSimulationState(state);
+    const success = saveSimulationState(state);
+    
+    if (success) {
+      setLastAutosaveTime(now);
+    }
+    
+    return success;
   };
   
   /**
@@ -367,9 +376,10 @@ export function useECSSimulation(canvasRef) {
       minimapUpdateTimerRef.current = 0;
     }
     
-    // Autosave every 30 seconds of real time
+    // Autosave every 15 seconds of real time (reduced from 30 to be more frequent)
+    const AUTOSAVE_INTERVAL = 15; // seconds
     autosaveTimerRef.current += deltaTime;
-    if (autosaveTimerRef.current >= 30) {
+    if (autosaveTimerRef.current >= AUTOSAVE_INTERVAL) {
       saveCurrentState();
       autosaveTimerRef.current = 0;
     }
@@ -680,6 +690,7 @@ export function useECSSimulation(canvasRef) {
     stats,
     hasLoadedSavedState,
     showRestartConfirmation,
+    lastAutosaveTime,
     
     // Entity positions for minimap
     organismPositions,
