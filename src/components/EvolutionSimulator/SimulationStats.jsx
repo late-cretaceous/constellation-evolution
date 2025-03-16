@@ -1,8 +1,9 @@
 import React from 'react';
+import { TURBO_SPEED } from '../../simulation/constants';
 
 /**
  * Displays simulation statistics and control buttons
- * Enhanced with restart confirmation dialog and autosave indicator
+ * Enhanced with turbo mode button for rapid testing
  */
 const SimulationStats = ({ 
   generation, 
@@ -13,7 +14,11 @@ const SimulationStats = ({
   showRestartConfirmation,
   onConfirmRestart,
   onCancelRestart,
-  lastAutosaveTime
+  lastAutosaveTime,
+  speed,
+  setSpeed,
+  isTurboMode,
+  onToggleTurboMode
 }) => {
   // Format the last autosave time
   const formatLastSaveTime = () => {
@@ -53,6 +58,14 @@ const SimulationStats = ({
             {isRunning ? 'Pause' : 'Resume'}
           </button>
           
+          <button
+            onClick={onToggleTurboMode}
+            className={`button ${isTurboMode ? 'button-orange active' : 'button-blue'}`}
+            title={`Turbo Mode (${TURBO_SPEED}x speed)`}
+          >
+            {isTurboMode ? 'Normal Speed' : 'Turbo Mode'}
+          </button>
+          
           {!showRestartConfirmation ? (
             <button
               onClick={onRestartSimulation}
@@ -85,6 +98,11 @@ const SimulationStats = ({
         <div className="autosave-info">
           <span className="autosave-icon">💾</span> Last autosave: {formatLastSaveTime()}
         </div>
+        {isTurboMode && (
+          <div className="turbo-info">
+            <span className="turbo-icon">⚡</span> Turbo Mode: {TURBO_SPEED}x speed
+          </div>
+        )}
       </div>
       {showRestartConfirmation && (
         <div className="restart-warning">

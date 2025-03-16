@@ -1,6 +1,6 @@
 /**
  * Simulation constants and settings
- * Updated for more effective evolution and larger simulation area
+ * Updated for more effective evolution and faster testing
  */
 
 // Canvas dimensions
@@ -13,11 +13,16 @@ export const MIN_SCALE = 0.5;      // Minimum zoom level
 export const MAX_SCALE = 2.0;      // Maximum zoom level
 
 // Simulation settings
-export const GENERATION_TIME = 100; // Reduced from 120 to have more frequent generations 
-export const INITIAL_POPULATION = 40; // Keep this number
+export const GENERATION_TIME = 100; // Seconds per generation
+export const INITIAL_POPULATION = 40;
 export const INITIAL_FOOD_AMOUNT = 80; // Reduced from 100 for higher competition
 export const DEFAULT_MUTATION_RATE = 0.15; // Increased from 0.1 for more variation
 export const DEFAULT_SIMULATION_SPEED = 1.2; // Slightly faster simulation by default
+
+// *** SPEED SETTINGS - DRAMATICALLY INCREASED ***
+export const MIN_SIMULATION_SPEED = 0.5;
+export const MAX_SIMULATION_SPEED = 10.0; // Increased from 3.0 to 10.0 for much faster simulation
+export const TURBO_SPEED = 8.0;           // New preset for "turbo mode"
 
 // Organism settings
 export const MIN_JOINT_COUNT = 3;
@@ -40,5 +45,3 @@ export const MIN_FOOD_AMOUNT = 20;
 export const MAX_FOOD_AMOUNT = 200; // Increased for larger area
 export const MIN_MUTATION_RATE = 0.01;
 export const MAX_MUTATION_RATE = 0.5;
-export const MIN_SIMULATION_SPEED = 0.5;
-export const MAX_SIMULATION_SPEED = 3;

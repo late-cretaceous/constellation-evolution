@@ -20,13 +20,15 @@ import {
   INITIAL_POPULATION,
   INITIAL_FOOD_AMOUNT,
   DEFAULT_MUTATION_RATE,
-  DEFAULT_SIMULATION_SPEED
+  DEFAULT_SIMULATION_SPEED,
+  TURBO_SPEED
 } from '../simulation/constants';
 import { saveSimulationState, loadSimulationState, hasSavedState } from '../utils/simulationStorage';
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
  * Enhanced with world reference exposure for organism selection
+ * and turbo mode for rapid testing
  * 
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
@@ -39,6 +41,8 @@ export function useECSSimulation(canvasRef) {
   const [foodAmount, setFoodAmount] = useState(INITIAL_FOOD_AMOUNT);
   const [mutationRate, setMutationRate] = useState(DEFAULT_MUTATION_RATE);
   const [speed, setSpeed] = useState(DEFAULT_SIMULATION_SPEED);
+  const [previousSpeed, setPreviousSpeed] = useState(DEFAULT_SIMULATION_SPEED); // For turbo mode
+  const [isTurboMode, setIsTurboMode] = useState(false);
   const [stats, setStats] = useState({
     bestFitness: 0,
     averageFitness: 0,
@@ -60,6 +64,8 @@ export function useECSSimulation(canvasRef) {
   const foodAmountRef = useRef(foodAmount);
   const mutationRateRef = useRef(mutationRate);
   const speedRef = useRef(speed);
+  const previousSpeedRef = useRef(previousSpeed);
+  const isTurboModeRef = useRef(isTurboMode);
   const worldRef = useRef(null);
   const entityFactoryRef = useRef(null);
   const evolutionSystemRef = useRef(null);
@@ -97,6 +103,10 @@ export function useECSSimulation(canvasRef) {
   }, [speed]);
   
   useEffect(() => {
+    previousSpeedRef.current = previousSpeed;
+  }, [previousSpeed]);
+  
+  useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
   
@@ -107,6 +117,10 @@ export function useECSSimulation(canvasRef) {
   useEffect(() => {
     statsRef.current = stats;
   }, [stats]);
+  
+  useEffect(() => {
+    isTurboModeRef.current = isTurboMode;
+  }, [isTurboMode]);
   
   /**
    * Save the current simulation state
@@ -125,7 +139,7 @@ export function useECSSimulation(canvasRef) {
         population: populationRef.current,
         foodAmount: foodAmountRef.current,
         mutationRate: mutationRateRef.current,
-        speed: speedRef.current,
+        speed: previousSpeedRef.current, // Save normal speed, not turbo mode
       }
       // Not saving organisms or food positions to avoid freezing issues
     };
@@ -203,6 +217,8 @@ export function useECSSimulation(canvasRef) {
     
     setSpeed(savedState.config.speed);
     speedRef.current = savedState.config.speed;
+    setPreviousSpeed(savedState.config.speed);
+    previousSpeedRef.current = savedState.config.speed;
     
     // Restore generation and stats
     setGeneration(savedState.generation);
@@ -219,8 +235,10 @@ export function useECSSimulation(canvasRef) {
     );
     
     // Recreate organisms
-    for (const organismData of savedState.organisms) {
-      createOrganismFromSavedData(organismData);
+    if (savedState.organisms && Array.isArray(savedState.organisms)) {
+      for (const organismData of savedState.organisms) {
+        createOrganismFromSavedData(organismData);
+      }
     }
     
     // Recreate food if positions exist
@@ -308,6 +326,38 @@ export function useECSSimulation(canvasRef) {
     setFoodPositions(newFoodPositions);
   };
 
+  /**
+   * Optimize rendering when in turbo mode to prioritize simulation speed
+   * @returns {boolean} - Whether to skip rendering for this frame
+   */
+  const optimizeForTurboMode = () => {
+    if (!worldRef.current || !renderSystemRef.current) return false;
+    
+    // Configure render system based on turbo mode
+    if (isTurboModeRef.current) {
+      // Reduce render frequency in turbo mode - only render every 3 frames
+      const shouldSkipRender = frameCountRef.current % 3 !== 0;
+      
+      // Configure renderer for performance
+      if (renderSystemRef.current) {
+        // Disable expensive rendering features in turbo mode
+        renderSystemRef.current.cullingEnabled = false;
+        renderSystemRef.current.useSmoothTransitions = false;
+        renderSystemRef.current.useAdaptivePatterns = false;
+      }
+      
+      return shouldSkipRender;
+    } else {
+      // Normal mode - restore standard settings
+      if (renderSystemRef.current) {
+        renderSystemRef.current.cullingEnabled = true;
+        renderSystemRef.current.useSmoothTransitions = true;
+        renderSystemRef.current.useAdaptivePatterns = true;
+      }
+      return false;
+    }
+  };
+
   // Main simulation loop - defined outside useEffect to prevent recreating it
   const simulate = (currentTime) => {
     if (!worldRef.current || !isRunningRef.current) return;
@@ -315,6 +365,9 @@ export function useECSSimulation(canvasRef) {
     // Calculate delta time
     const deltaTime = Math.min((currentTime - lastTimeRef.current) / 1000, 0.1); // Cap at 0.1s to prevent huge jumps
     lastTimeRef.current = currentTime;
+    
+    // Check if render optimization should be applied
+    const shouldSkipRender = optimizeForTurboMode();
     
     // Check if we need to restart simulation
     if (needsRestart) {
@@ -370,17 +423,22 @@ export function useECSSimulation(canvasRef) {
       generationEndCounterRef.current = 0; // Reset counter if food was eaten
     }
     
-    // Update minimap positions at a reduced rate (every 10 frames)
-    minimapUpdateTimerRef.current += deltaTime;
-    if (minimapUpdateTimerRef.current >= 0.2) { // Update every 0.2 seconds
+    // Update minimap positions at a reduced rate, or skip in turbo mode
+    if (!isTurboModeRef.current) {
+      minimapUpdateTimerRef.current += deltaTime;
+      if (minimapUpdateTimerRef.current >= 0.2) { // Update every 0.2 seconds
+        updateEntityPositions();
+        minimapUpdateTimerRef.current = 0;
+      }
+    } else if (frameCountRef.current % 20 === 0) {
+      // In turbo mode, update very infrequently (every 20 frames)
       updateEntityPositions();
-      minimapUpdateTimerRef.current = 0;
     }
     
-    // Autosave every 15 seconds of real time (reduced from 30 to be more frequent)
-    const AUTOSAVE_INTERVAL = 15; // seconds
+    // Autosave periodically, but less frequently in turbo mode
+    const autosaveInterval = isTurboModeRef.current ? 30 : 15; // seconds
     autosaveTimerRef.current += deltaTime;
-    if (autosaveTimerRef.current >= AUTOSAVE_INTERVAL) {
+    if (autosaveTimerRef.current >= autosaveInterval) {
       saveCurrentState();
       autosaveTimerRef.current = 0;
     }
@@ -408,8 +466,10 @@ export function useECSSimulation(canvasRef) {
       // Update minimap after generation change
       updateEntityPositions();
       
-      // Save state after generation change
-      setTimeout(() => saveCurrentState(), 500);
+      // Save state after generation change (unless in turbo mode)
+      if (!isTurboModeRef.current) {
+        setTimeout(() => saveCurrentState(), 500);
+      }
     }
     
     // Set a backup timeout to ensure generation doesn't run indefinitely
@@ -533,6 +593,8 @@ export function useECSSimulation(canvasRef) {
             if (typeof savedState.config.speed === 'number') {
               setSpeed(savedState.config.speed);
               speedRef.current = savedState.config.speed;
+              setPreviousSpeed(savedState.config.speed);
+              previousSpeedRef.current = savedState.config.speed;
             }
             
             evolutionSystem.setParams(
@@ -680,6 +742,25 @@ export function useECSSimulation(canvasRef) {
     setShowRestartConfirmation(false);
   };
   
+  /**
+   * Toggle turbo mode
+   */
+  const toggleTurboMode = () => {
+    const newTurboState = !isTurboMode;
+    
+    // Store current speed or restore original speed
+    if (newTurboState) {
+      // Entering turbo mode
+      setPreviousSpeed(speed);
+      setSpeed(TURBO_SPEED);
+    } else {
+      // Exiting turbo mode
+      setSpeed(previousSpeed);
+    }
+    
+    setIsTurboMode(newTurboState);
+  };
+  
   return {
     // State
     isRunning,
@@ -688,6 +769,8 @@ export function useECSSimulation(canvasRef) {
     foodAmount,
     mutationRate,
     speed,
+    previousSpeed,
+    isTurboMode,
     stats,
     hasLoadedSavedState,
     showRestartConfirmation,
@@ -705,12 +788,14 @@ export function useECSSimulation(canvasRef) {
     setFoodAmount,
     setMutationRate,
     setSpeed,
+    setPreviousSpeed,
     
     // Actions
     toggleSimulation,
     requestRestartSimulation,
     confirmRestartSimulation,
-    cancelRestartSimulation
+    cancelRestartSimulation,
+    toggleTurboMode
   };
 }
 

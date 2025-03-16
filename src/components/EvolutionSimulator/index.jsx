@@ -8,13 +8,14 @@ import SimulationStats from './SimulationStats';
 import HelpPanel from './HelpPanel';
 import OrganismViewer from './OrganismViewer';
 import OrganismLibrary from './OrganismLibrary';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../simulation/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, TURBO_SPEED } from '../../simulation/constants';
 import './EvolutionSimulator.css';
 import './OrganismViewer.css';
 import './OrganismLibrary.css';
 
 /**
  * Main Evolution Simulator component with organism selection and viewing
+ * Enhanced with Turbo Mode for faster testing
  */
 const EvolutionSimulator = () => {
   // Canvas reference
@@ -149,6 +150,10 @@ const EvolutionSimulator = () => {
             onConfirmRestart={simulation.confirmRestartSimulation}
             onCancelRestart={simulation.cancelRestartSimulation}
             lastAutosaveTime={simulation.lastAutosaveTime}
+            speed={simulation.speed}
+            setSpeed={simulation.setSpeed}
+            isTurboMode={simulation.isTurboMode}
+            onToggleTurboMode={simulation.toggleTurboMode}
           />
         </div>
         
@@ -164,6 +169,7 @@ const EvolutionSimulator = () => {
             setFoodAmount={simulation.setFoodAmount}
             setMutationRate={simulation.setMutationRate}
             setSpeed={simulation.setSpeed}
+            isTurboMode={simulation.isTurboMode}
           />
           
           {/* Organism Viewer */}
