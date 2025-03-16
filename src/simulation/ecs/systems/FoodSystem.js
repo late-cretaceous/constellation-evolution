@@ -9,7 +9,7 @@ import { EATING_DISTANCE, FOOD_VALUE } from '../../constants';
 
 /**
  * System that handles food consumption and tracks fitness
- * Fixed to remove any automatic fitness increases
+ * Improved to provide better reward structure while still respecting evolutionary principles
  */
 export class FoodSystem extends System {
   /**
@@ -20,9 +20,13 @@ export class FoodSystem extends System {
     super(world);
     this.foodsEaten = 0;
     
-    // Fixed parameters - removing any automatic fitness increases
+    // Food consumption parameters
     this.eatingDistance = EATING_DISTANCE;
     this.foodValue = FOOD_VALUE;
+    
+    // New: Track which food items are currently being targeted by an organism
+    // This is just for efficiency - we don't reward "getting closer", just avoid rechecking already targeted food
+    this.targetedFood = new Set();
   }
 
   /**
@@ -32,6 +36,7 @@ export class FoodSystem extends System {
    */
   update(deltaTime) {
     this.foodsEaten = 0;
+    this.targetedFood.clear();
     
     // Get all food entities
     const foodEntities = this.world.getEntitiesWithComponent(FoodComponent);
@@ -46,9 +51,16 @@ export class FoodSystem extends System {
       const organism = organismEntity.getComponent(OrganismComponent);
       const fitness = organismEntity.getComponent(FitnessComponent);
       
-      // No automatic survival bonus - fitness only increases by eating food
+      // Only reward for actually eating food - no automatic survival bonus
       
-      for (const foodEntity of foodEntities) {
+      // For efficiency, prioritize checking food that's not already targeted
+      const prioritizedFoodEntities = [...foodEntities].sort((a, b) => {
+        const aIsTargeted = this.targetedFood.has(a.id) ? 1 : 0;
+        const bIsTargeted = this.targetedFood.has(b.id) ? 1 : 0;
+        return aIsTargeted - bIsTargeted;
+      });
+      
+      for (const foodEntity of prioritizedFoodEntities) {
         if (entitiesToRemove.includes(foodEntity.id)) continue; // Skip if already marked for removal
         
         const foodPosition = foodEntity.getComponent(PositionComponent);
@@ -60,8 +72,16 @@ export class FoodSystem extends System {
           
           const jointPosition = jointEntity.getComponent(PositionComponent);
           
-          if (jointPosition.position.distanceTo(foodPosition.position) < this.eatingDistance) {
-            // Eat the food - fixed value with no bonuses
+          const distance = jointPosition.position.distanceTo(foodPosition.position);
+          
+          // Mark food as "targeted" when any joint is within twice the eating distance
+          // This is just for optimization, not for additional fitness rewards
+          if (distance < this.eatingDistance * 2) {
+            this.targetedFood.add(foodEntity.id);
+          }
+          
+          if (distance < this.eatingDistance) {
+            // Eat the food - fixed value that doesn't change with distance
             fitness.fitness += this.foodValue;
             fitness.foodEaten++;
             entitiesToRemove.push(foodEntity.id);

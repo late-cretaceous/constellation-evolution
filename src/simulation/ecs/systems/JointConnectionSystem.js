@@ -7,6 +7,7 @@ import { Vector2 } from '../utils/Vector2';
 
 /**
  * System that handles connections between joints with enhanced extend/contract behavior
+ * Modified to produce more stable and predictable movement patterns
  */
 export class JointConnectionSystem extends System {
   /**
@@ -16,12 +17,17 @@ export class JointConnectionSystem extends System {
   constructor(world) {
     super(world);
     
-    // Enhanced joint connection parameters
-    this.extensionFactor = 1.8;   // Increased from 1.3 - How much joints extend
-    this.contractionFactor = 0.6; // Decreased from 0.7 - How much joints contract
-    this.forceMultiplier = 2.0;   // Multiplier for spring forces
-    this.minRestLength = 15;      // Minimum rest length to prevent collapse
-    this.adaptiveForces = true;   // Use adaptive forces based on distance
+    // Joint connection parameters - adjusted for more stable movement
+    this.extensionFactor = 1.5;    // Decreased from 1.8 for more controlled extension
+    this.contractionFactor = 0.65; // Increased from 0.6 for more controlled contraction
+    this.forceMultiplier = 1.8;    // Reduced from 2.0 for more stable forces
+    this.minRestLength = 15;       // Minimum rest length to prevent collapse
+    this.adaptiveForces = true;    // Use adaptive forces based on distance
+    
+    // New parameters for more stable behavior
+    this.maxStretchRatio = 2.0;    // Maximum stretch before additional force is applied
+    this.minCompressionRatio = 0.4; // Minimum compression before additional force is applied
+    this.progressiveStiffness = true; // Use higher stiffness for extreme stretching/compression
   }
 
   /**
@@ -54,7 +60,6 @@ export class JointConnectionSystem extends System {
         const connectedJoint = connectedEntity.getComponent(JointComponent);
         
         // Get the current rest length for this connection
-        // Enhanced with better extension/contraction factors
         let restLength = jointComponent.restLengths.get(connectedJointId) || 
                           jointComponent.defaultRestLength;
         
@@ -64,11 +69,11 @@ export class JointConnectionSystem extends System {
         // Enhanced adaptive rest length calculation
         if (this.adaptiveForces) {
           // If joints are very far apart, increase the contraction force
-          if (currentDistance > restLength * 1.5) {
+          if (currentDistance > restLength * this.maxStretchRatio) {
             restLength = Math.max(restLength * 0.9, this.minRestLength);
           }
           // If joints are very close, increase the extension force
-          else if (currentDistance < restLength * 0.5) {
+          else if (currentDistance < restLength * this.minCompressionRatio) {
             restLength = restLength * 1.1;
           }
         }
@@ -81,7 +86,27 @@ export class JointConnectionSystem extends System {
         const stretch = distance - restLength;
         
         // Enhanced force calculation with adaptive stiffness
-        let forceMagnitude = stretch * jointPhysics.stiffness * this.forceMultiplier;
+        let stiffness = jointPhysics.stiffness;
+        
+        // Use progressive stiffness for more stable movements
+        if (this.progressiveStiffness) {
+          // Calculate ratio of current distance to rest length
+          const distanceRatio = distance / restLength;
+          
+          // Apply higher stiffness for extreme stretching or compression
+          if (distanceRatio > this.maxStretchRatio) {
+            // Additional stiffness proportional to how far beyond maxStretchRatio
+            const extraStiffness = (distanceRatio - this.maxStretchRatio) * 1.5;
+            stiffness *= (1 + extraStiffness);
+          } else if (distanceRatio < this.minCompressionRatio) {
+            // Additional stiffness proportional to how far below minCompressionRatio
+            const extraStiffness = (this.minCompressionRatio - distanceRatio) * 1.5;
+            stiffness *= (1 + extraStiffness);
+          }
+        }
+        
+        // Calculate force with adapted stiffness 
+        let forceMagnitude = stretch * stiffness * this.forceMultiplier;
         
         // Apply spring force in the direction of the connection
         const springForce = direction.normalize().multiply(forceMagnitude);

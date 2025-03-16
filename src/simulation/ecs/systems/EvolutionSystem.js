@@ -15,7 +15,8 @@ import {
 
 /**
  * System that handles organism reproduction and evolution
- * Updated with improved selection pressure and genetic diversity
+ * Updated with improved selection pressure and genetic diversity,
+ * with optimized food distribution to better facilitate evolution
  */
 export class EvolutionSystem extends System {
   /**
@@ -41,15 +42,20 @@ export class EvolutionSystem extends System {
     };
     this.generationCount = 0;
     
-    // Enhanced evolution parameters
-    this.selectionRatio = 0.4;      // Reduced from 0.5 to increase selection pressure
-    this.elitismCount = 2;          // Preserve top organisms with minimal mutation
-    this.tournamentSize = 3;        // Number of organisms to compare in tournament selection
-    this.jointMutationChance = 0.15; // Increased from 0.1 for more body plan diversity
+    // Evolution parameters - adjusted for better selection and diversity
+    this.selectionRatio = 0.35;     // Reduced from 0.4 to increase selection pressure
+    this.elitismCount = 3;          // Increased from 2 to preserve success better
+    this.tournamentSize = 4;        // Increased from 3 for stronger selection
+    this.jointMutationChance = 0.18; // Increased from 0.15 for more body plan diversity
+    
+    // Food clustering parameters (new)
+    this.useFoodClustering = true;  // Use clustered food for better evolution
+    this.foodClusterCount = 5;      // Number of food clusters
+    this.foodClusterRadius = 200;   // Size of each food cluster
   }
 
   /**
-   * Update not used for this system, as it's called externally
+   * Update not used for this system, as it's called externally to start a new generation
    * @param {number} deltaTime - Time elapsed since last update
    */
   update(deltaTime) {
@@ -111,10 +117,25 @@ export class EvolutionSystem extends System {
   }
 
   /**
-   * Initialize food with improved distribution for larger simulation area
+   * Initialize food with improved clustering to facilitate evolution
    */
   initializeFood() {
-    // Use quadrants to distribute food more evenly
+    // Determine whether to use clustered or quadrant-based distribution
+    if (this.useFoodClustering) {
+      // Create clustered food distribution
+      this.initializeClusteredFood();
+    } else {
+      // Use quadrant distribution (original approach)
+      this.initializeQuadrantFood();
+    }
+  }
+  
+  /**
+   * Initialize food using quadrant-based distribution
+   * @private
+   */
+  initializeQuadrantFood() {
+    // Use quadrants to distribute food relatively evenly
     const quadrantWidth = CANVAS_WIDTH / 2;
     const quadrantHeight = CANVAS_HEIGHT / 2;
     
@@ -146,6 +167,65 @@ export class EvolutionSystem extends System {
       
       // Create food entity
       this.entityFactory.createFood(x, y);
+    }
+  }
+  
+  /**
+   * Initialize food using clustering to create more meaningful resource distribution
+   * @private
+   */
+  initializeClusteredFood() {
+    // Create random cluster centers
+    const clusters = [];
+    
+    // Calculate padding from edges
+    const padding = 100;
+    
+    // Create cluster centers with reasonable spacing
+    for (let i = 0; i < this.foodClusterCount; i++) {
+      clusters.push({
+        x: padding + Math.random() * (CANVAS_WIDTH - padding * 2),
+        y: padding + Math.random() * (CANVAS_HEIGHT - padding * 2)
+      });
+    }
+    
+    // Add some completely random food (30% of total)
+    const randomFoodCount = Math.floor(this.foodAmount * 0.3);
+    for (let i = 0; i < randomFoodCount; i++) {
+      const x = padding + Math.random() * (CANVAS_WIDTH - padding * 2);
+      const y = padding + Math.random() * (CANVAS_HEIGHT - padding * 2);
+      this.entityFactory.createFood(x, y);
+    }
+    
+    // Distribute remaining food among clusters
+    const clusterFoodCount = this.foodAmount - randomFoodCount;
+    const foodPerCluster = Math.floor(clusterFoodCount / clusters.length);
+    
+    for (let i = 0; i < clusters.length; i++) {
+      const cluster = clusters[i];
+      let clusterFoodToAdd = foodPerCluster;
+      
+      // Add one more to last cluster if there's remainder
+      if (i === clusters.length - 1) {
+        clusterFoodToAdd += clusterFoodCount % clusters.length;
+      }
+      
+      // Create food around this cluster
+      for (let j = 0; j < clusterFoodToAdd; j++) {
+        // Random angle and distance from cluster center
+        const angle = Math.random() * Math.PI * 2;
+        // Use square root for more uniform distribution within circle
+        const distance = Math.sqrt(Math.random()) * this.foodClusterRadius;
+        
+        const x = cluster.x + Math.cos(angle) * distance;
+        const y = cluster.y + Math.sin(angle) * distance;
+        
+        // Ensure within canvas bounds
+        const validX = Math.max(padding, Math.min(CANVAS_WIDTH - padding, x));
+        const validY = Math.max(padding, Math.min(CANVAS_HEIGHT - padding, y));
+        
+        this.entityFactory.createFood(validX, validY);
+      }
     }
   }
 
@@ -188,8 +268,37 @@ export class EvolutionSystem extends System {
     const currentFoodCount = foodEntities.length;
     const foodToAdd = Math.min(amount, this.foodAmount - currentFoodCount);
     
-    for (let i = 0; i < foodToAdd; i++) {
-      this.createFoodEntity();
+    // If using clustering, try to add food near existing food
+    if (this.useFoodClustering && foodEntities.length > 0) {
+      for (let i = 0; i < foodToAdd; i++) {
+        if (Math.random() < 0.7 && foodEntities.length > 0) {
+          // Select a random existing food
+          const randomFoodIndex = Math.floor(Math.random() * foodEntities.length);
+          const existingFood = foodEntities[randomFoodIndex];
+          const foodPos = existingFood.getComponent(PositionComponent);
+          
+          // Create new food nearby
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 30 + Math.random() * 70; // Between 30-100 units away
+          
+          const x = foodPos.position.x + Math.cos(angle) * distance;
+          const y = foodPos.position.y + Math.sin(angle) * distance;
+          
+          // Ensure within canvas bounds
+          const validX = Math.max(10, Math.min(CANVAS_WIDTH - 10, x));
+          const validY = Math.max(10, Math.min(CANVAS_HEIGHT - 10, y));
+          
+          this.entityFactory.createFood(validX, validY);
+        } else {
+          // Create completely random food
+          this.createFoodEntity();
+        }
+      }
+    } else {
+      // Add food with normal distribution
+      for (let i = 0; i < foodToAdd; i++) {
+        this.createFoodEntity();
+      }
     }
   }
 
@@ -270,7 +379,7 @@ export class EvolutionSystem extends System {
       }
       
       // Occasionally use a completely random parent from any organism for extreme exploration
-      if (Math.random() < 0.05 && organismEntities.length > survivors.length) {
+      if (Math.random() < 0.08 && organismEntities.length > survivors.length) {
         const randomIndex = survivors.length + Math.floor(
           Math.random() * (organismEntities.length - survivors.length)
         );
@@ -495,10 +604,10 @@ export class EvolutionSystem extends System {
     
     this.stats = {
       bestFitness: bestFitness,
-      averageFitness: (totalFitness / organismEntities.length).toFixed(1),
+      averageFitness: Number((totalFitness / organismEntities.length).toFixed(1)),
       minJoints: minJoints,
       maxJoints: maxJoints,
-      avgJoints: (totalJoints / organismEntities.length).toFixed(1)
+      avgJoints: Number((totalJoints / organismEntities.length).toFixed(1))
     };
     
     return this.stats;

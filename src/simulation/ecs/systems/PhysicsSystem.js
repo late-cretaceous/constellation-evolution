@@ -10,6 +10,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../../constants';
 /**
  * System that handles physics calculations and movement
  * Enhanced with more effective movement dynamics for larger world area
+ * Modified to produce smoother, more controllable movement
  */
 export class PhysicsSystem extends System {
   /**
@@ -19,17 +20,17 @@ export class PhysicsSystem extends System {
   constructor(world) {
     super(world);
     
-    // Physics simulation constants - adjusted for more effective movement in larger area
-    this.velocityMultiplier = 1.6;    // Increased for larger area (was 1.4)
-    this.forceMagnifier = 2.8;        // Increased force multiplier (was 2.5)
-    this.damping = 0.95;              // Less damping for more fluid movement (0.98 originally)
-    this.maxVelocity = 60.0;          // Higher max velocity for larger area (was 45.0)
-    this.bounceEnergyRetention = 0.9; // Energy retained on bounce
+    // Physics simulation constants - adjusted for more controlled movement
+    this.velocityMultiplier = 1.2;    // Decreased from 1.6 for more controlled movement
+    this.forceMagnifier = 2.0;        // Decreased from 2.8 for more stable forces
+    this.damping = 0.97;              // Increased from 0.95 for more stable movement
+    this.maxVelocity = 40.0;          // Reduced from 60.0 for more controlled movement
+    this.bounceEnergyRetention = 0.8; // Reduced from 0.9 for more predictable bounces
     
-    // Random impulse settings - to prevent organisms from getting stuck in larger area
+    // Random impulse settings - reduced to prevent disrupting emerging patterns
     this.applyImpulse = true;         // Apply random impulses occasionally
-    this.impulseStrength = 20.0;      // Increased strength of random impulses (was 15.0)
-    this.impulseProbability = 0.002;  // Higher probability for larger area (was 0.001)
+    this.impulseStrength = 10.0;      // Decreased from 20.0 for less disruption
+    this.impulseProbability = 0.001;  // Reduced from 0.002 to lower disruption frequency
     
     // Spatial partitioning for large world
     this.useQuadtree = false;         // Set to true to enable spatial acceleration for very large worlds
@@ -63,7 +64,7 @@ export class PhysicsSystem extends System {
         }
         
         // Apply occasional random impulse to help "unstick" organisms
-        // More important in larger area to avoid getting stuck at the edges
+        // Less frequent and weaker to avoid disrupting emerging patterns
         if (this.applyImpulse && Math.random() < this.impulseProbability) {
           // If near edge, apply impulse away from edge
           const nearEdge = this.isNearEdge(position.position.x, position.position.y, 50);
@@ -71,15 +72,17 @@ export class PhysicsSystem extends System {
           if (nearEdge) {
             // Apply impulse away from nearest edge
             const impulse = this.getEdgeAvoidanceImpulse(position.position.x, position.position.y);
-            physics.force = physics.force.add(impulse.multiply(this.impulseStrength * 1.5));
+            physics.force = physics.force.add(impulse.multiply(this.impulseStrength * 1.2));
           } else {
-            // Regular random impulse in open space
-            const angle = Math.random() * Math.PI * 2;
-            const impulse = new Vector2(
-              Math.cos(angle) * this.impulseStrength,
-              Math.sin(angle) * this.impulseStrength
-            );
-            physics.force = physics.force.add(impulse);
+            // Only occasionally apply random impulse in open space (further reduced)
+            if (Math.random() < 0.5) {
+              const angle = Math.random() * Math.PI * 2;
+              const impulse = new Vector2(
+                Math.cos(angle) * this.impulseStrength * 0.7,
+                Math.sin(angle) * this.impulseStrength * 0.7
+              );
+              physics.force = physics.force.add(impulse);
+            }
           }
         }
         
@@ -91,7 +94,7 @@ export class PhysicsSystem extends System {
         const velocityChange = acceleration.multiply(deltaTime * this.velocityMultiplier);
         velocity.velocity = velocity.velocity.add(velocityChange);
         
-        // Apply custom damping (lower than original for more fluid movement)
+        // Apply custom damping (higher than original for more stable movement)
         velocity.velocity = velocity.velocity.multiply(
           // Use joint-specific damping if available, otherwise use system default
           entity.hasComponent(JointComponent) ? physics.damping : this.damping
