@@ -33,6 +33,7 @@ const SimulationCanvas = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [initialOffset, setInitialOffset] = useState({ x: 0, y: 0 });
   const [isSelecting, setIsSelecting] = useState(false);
+  const [hasMoved, setHasMoved] = useState(false);
   
   // Viewport container ref
   const containerRef = useRef(null);
@@ -118,11 +119,11 @@ const SimulationCanvas = ({
     setDragStart({ x: e.clientX, y: e.clientY });
     setInitialOffset({ ...viewportOffset });
     
+    // Reset movement flag
+    setHasMoved(false);
+    
     // Track if we're starting a selection or drag (we'll know on mouse move)
     setIsSelecting(true);
-    
-    // Don't start dragging immediately - we'll decide based on movement
-    // This allows for clicking without dragging
   };
   
   // Handle mouse move to update viewport while dragging
@@ -132,17 +133,17 @@ const SimulationCanvas = ({
       const deltaX = Math.abs(e.clientX - dragStart.x);
       const deltaY = Math.abs(e.clientY - dragStart.y);
       
-      // If moved more than 3 pixels, consider it a drag
-      if (deltaX > 3 || deltaY > 3) {
+      // If moved more than 5 pixels, consider it a drag
+      if (deltaX > 5 || deltaY > 5) {
         setIsDragging(true);
-        setIsSelecting(false);
+        setHasMoved(true);
       }
     }
     
     // If dragging, update viewport
     if (isDragging) {
-      const deltaX = (e.clientX - dragStart.x) / scale;
-      const deltaY = (e.clientY - dragStart.y) / scale;
+      const deltaX = (e.clientX - dragStart.x);
+      const deltaY = (e.clientY - dragStart.y);
       
       setViewportOffset({
         x: initialOffset.x + deltaX,
@@ -153,23 +154,26 @@ const SimulationCanvas = ({
   
   // Handle click for organism selection
   const handleClick = (e) => {
-    // Don't trigger selection after a drag
-    if (isDragging) return;
+    // Only register clicks, not drags
+    if (hasMoved || !selectionEnabled || !onOrganismSelect) return;
     
-    // Only handle actual clicks (not end of drags)
-    if (isSelecting && onOrganismSelect && selectionEnabled) {
-      // Get canvas rect for coordinate calculation
-      const rect = canvasRef.current.getBoundingClientRect();
-      
-      // Call the selection handler with canvas coordinates
-      onOrganismSelect(e.clientX - rect.left, e.clientY - rect.top);
-    }
+    // Get canvas rect for coordinate calculation
+    const rect = canvasRef.current.getBoundingClientRect();
+    
+    // Calculate coordinates relative to canvas
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Call selection handler with coordinates and current viewport info
+    onOrganismSelect(x, y, viewportOffset, scale);
   };
   
-  // Handle mouse up to stop dragging
+  // Handle mouse up to stop dragging and potentially select
   const handleMouseUp = (e) => {
-    // Handle click for selection
-    handleClick(e);
+    // Only register as a click if we haven't moved much
+    if (isSelecting && !hasMoved) {
+      handleClick(e);
+    }
     
     // End dragging/selecting
     setIsDragging(false);
@@ -198,12 +202,12 @@ const SimulationCanvas = ({
       const mouseY = e.clientY - rect.top;
       
       // Calculate old world position
-      const worldX = (mouseX / scale) - viewportOffset.x;
-      const worldY = (mouseY / scale) - viewportOffset.y;
+      const worldX = (mouseX - viewportOffset.x) / scale;
+      const worldY = (mouseY - viewportOffset.y) / scale;
       
       // Calculate new viewport offset to keep mouse position fixed
-      const newOffsetX = -(worldX * newScale - mouseX);
-      const newOffsetY = -(worldY * newScale - mouseY);
+      const newOffsetX = mouseX - worldX * newScale;
+      const newOffsetY = mouseY - worldY * newScale;
       
       // Update state
       setScale(newScale);
@@ -219,6 +223,7 @@ const SimulationCanvas = ({
       setDragStart({ x: touch.clientX, y: touch.clientY });
       setInitialOffset({ ...viewportOffset });
       setIsSelecting(true);
+      setHasMoved(false);
     }
   };
   
@@ -236,13 +241,13 @@ const SimulationCanvas = ({
       // If moved more than 10 pixels, consider it a drag (larger threshold for touch)
       if (deltaX > 10 || deltaY > 10) {
         setIsDragging(true);
-        setIsSelecting(false);
+        setHasMoved(true);
       }
     }
     
     if (isDragging) {
-      const deltaX = (touch.clientX - dragStart.x) / scale;
-      const deltaY = (touch.clientY - dragStart.y) / scale;
+      const deltaX = (touch.clientX - dragStart.x);
+      const deltaY = (touch.clientY - dragStart.y);
       
       setViewportOffset({
         x: initialOffset.x + deltaX,
@@ -254,14 +259,19 @@ const SimulationCanvas = ({
   // Handle touch end for selection
   const handleTouchEnd = (e) => {
     // If it was a tap (not a drag), try to select organism
-    if (isSelecting && onOrganismSelect && selectionEnabled) {
+    if (isSelecting && !hasMoved && selectionEnabled && onOrganismSelect) {
       // Get the last touch position
       if (e.changedTouches.length > 0) {
         const touch = e.changedTouches[0];
         const rect = canvasRef.current.getBoundingClientRect();
         
         // Call the selection handler with canvas coordinates
-        onOrganismSelect(touch.clientX - rect.left, touch.clientY - rect.top);
+        onOrganismSelect(
+          touch.clientX - rect.left, 
+          touch.clientY - rect.top,
+          viewportOffset,
+          scale
+        );
       }
     }
     

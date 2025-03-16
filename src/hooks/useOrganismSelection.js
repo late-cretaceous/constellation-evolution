@@ -32,16 +32,22 @@ export function useOrganismSelection(world, viewportOffset, viewportScale) {
    * 
    * @param {number} screenX - X coordinate on screen
    * @param {number} screenY - Y coordinate on screen
+   * @param {Object} currentViewportOffset - Current viewport offset at time of click
+   * @param {number} currentViewportScale - Current viewport scale at time of click
    */
-  const selectOrganismAt = useCallback((screenX, screenY) => {
+  const selectOrganismAt = useCallback((screenX, screenY, currentViewportOffset, currentViewportScale) => {
     // First, clear current selection
     clearSelection();
     
     if (!worldRef.current) return null;
     
+    // Use provided viewport parameters if available, otherwise use the hook's state
+    const offset = currentViewportOffset || viewportOffset;
+    const scale = currentViewportScale || viewportScale;
+    
     // Convert screen coordinates to world coordinates
-    const worldX = (screenX - viewportOffset.x) / viewportScale;
-    const worldY = (screenY - viewportOffset.y) / viewportScale;
+    const worldX = (screenX - offset.x) / scale;
+    const worldY = (screenY - offset.y) / scale;
     
     // Get all organisms
     const organismEntities = worldRef.current.getEntitiesWithComponent(OrganismComponent);
@@ -53,19 +59,31 @@ export function useOrganismSelection(world, viewportOffset, viewportScale) {
     for (const organismEntity of organismEntities) {
       const organism = organismEntity.getComponent(OrganismComponent);
       
-      // Calculate center position of organism
+      // Calculate center position of organism and bounding box
       let centerX = 0;
       let centerY = 0;
       let jointCount = 0;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       
       for (const jointId of organism.jointIds) {
         const jointEntity = worldRef.current.getEntity(jointId);
         if (!jointEntity) continue;
         
         const position = jointEntity.getComponent(PositionComponent);
-        centerX += position.position.x;
-        centerY += position.position.y;
+        if (!position) continue;
+        
+        const posX = position.position.x;
+        const posY = position.position.y;
+        
+        centerX += posX;
+        centerY += posY;
         jointCount++;
+        
+        // Update bounding box
+        minX = Math.min(minX, posX);
+        minY = Math.min(minY, posY);
+        maxX = Math.max(maxX, posX);
+        maxY = Math.max(maxY, posY);
       }
       
       if (jointCount === 0) continue;
@@ -73,37 +91,30 @@ export function useOrganismSelection(world, viewportOffset, viewportScale) {
       centerX /= jointCount;
       centerY /= jointCount;
       
-      // Calculate distance to click point
-      const distance = Math.sqrt(
-        Math.pow(centerX - worldX, 2) + 
-        Math.pow(centerY - worldY, 2)
-      );
+      // Calculate width and height of bounding box
+      const width = maxX - minX;
+      const height = maxY - minY;
       
-      // Calculate organism radius (average distance from center to joints)
-      let radius = 0;
-      for (const jointId of organism.jointIds) {
-        const jointEntity = worldRef.current.getEntity(jointId);
-        if (!jointEntity) continue;
-        
-        const position = jointEntity.getComponent(PositionComponent);
-        const jointDistance = Math.sqrt(
-          Math.pow(position.position.x - centerX, 2) + 
-          Math.pow(position.position.y - centerY, 2)
+      // Use a more reliable selection method:
+      // 1. Check if point is within the bounding box (with padding)
+      const padding = 40;  // Add padding in world units
+      if (
+        worldX >= minX - padding &&
+        worldX <= maxX + padding &&
+        worldY >= minY - padding &&
+        worldY <= maxY + padding
+      ) {
+        // 2. Calculate distance to organism center for tiebreaking
+        const distance = Math.sqrt(
+          Math.pow(centerX - worldX, 2) + 
+          Math.pow(centerY - worldY, 2)
         );
-        radius += jointDistance;
-      }
-      
-      if (jointCount > 0) {
-        radius = radius / jointCount;
-      }
-      
-      // Add a minimum selection radius (30 pixels)
-      radius = Math.max(radius, 30);
-      
-      // Check if click is within organism radius
-      if (distance <= radius && distance < closestDistance) {
-        closestOrganism = organismEntity;
-        closestDistance = distance;
+        
+        // If we're within the bounding box or this is the closest organism so far
+        if (distance < closestDistance) {
+          closestOrganism = organismEntity;
+          closestDistance = distance;
+        }
       }
     }
     

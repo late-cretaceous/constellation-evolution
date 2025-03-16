@@ -57,9 +57,10 @@ const EvolutionSimulator = () => {
     viewportScale
   );
   
-  // Handle organism selection
-  const handleOrganismSelect = (x, y) => {
-    selection.selectOrganismAt(x, y);
+  // Handle organism selection with viewport info
+  const handleOrganismSelect = (x, y, currentViewportOffset, currentViewportScale) => {
+    // Pass along both the coordinates and current viewport state
+    selection.selectOrganismAt(x, y, currentViewportOffset, currentViewportScale);
   };
   
   // Handle organism deselection
