@@ -26,7 +26,8 @@ import { saveSimulationState, loadSimulationState, hasSavedState } from '../util
 
 /**
  * Custom hook to manage the evolution simulation using ECS architecture
- * Enhanced with better configuration options, entity position tracking, and autosave
+ * Enhanced with world reference exposure for organism selection
+ * 
  * @param {React.RefObject} canvasRef - Reference to the canvas element
  * @returns {Object} - Simulation state and control functions
  */
@@ -695,6 +696,9 @@ export function useECSSimulation(canvasRef) {
     // Entity positions for minimap
     organismPositions,
     foodPositions,
+    
+    // World reference for organism selection
+    worldRef,
     
     // Setters
     setPopulation,
