@@ -7,7 +7,7 @@ import { Vector2 } from '../utils/Vector2';
 
 /**
  * System that handles connections between joints with enhanced extend/contract behavior
- * Modified to produce more stable and predictable movement patterns
+ * Modified to produce more effective movement patterns
  */
 export class JointConnectionSystem extends System {
   /**
@@ -17,14 +17,14 @@ export class JointConnectionSystem extends System {
   constructor(world) {
     super(world);
     
-    // Joint connection parameters - adjusted for more stable movement
-    this.extensionFactor = 1.5;    // Decreased from 1.8 for more controlled extension
-    this.contractionFactor = 0.65; // Increased from 0.6 for more controlled contraction
-    this.forceMultiplier = 1.8;    // Reduced from 2.0 for more stable forces
+    // Joint connection parameters - adjusted for more powerful movement
+    this.extensionFactor = 1.7;    // Increased for stronger extension
+    this.contractionFactor = 0.5; // Decreased for stronger contraction
+    this.forceMultiplier = 2.0;    // Increased for stronger forces
     this.minRestLength = 15;       // Minimum rest length to prevent collapse
     this.adaptiveForces = true;    // Use adaptive forces based on distance
     
-    // New parameters for more stable behavior
+    // New parameters for more effective behavior
     this.maxStretchRatio = 2.0;    // Maximum stretch before additional force is applied
     this.minCompressionRatio = 0.4; // Minimum compression before additional force is applied
     this.progressiveStiffness = true; // Use higher stiffness for extreme stretching/compression
@@ -70,11 +70,11 @@ export class JointConnectionSystem extends System {
         if (this.adaptiveForces) {
           // If joints are very far apart, increase the contraction force
           if (currentDistance > restLength * this.maxStretchRatio) {
-            restLength = Math.max(restLength * 0.9, this.minRestLength);
+            restLength = Math.max(restLength * 0.85, this.minRestLength); // More aggressive contraction
           }
           // If joints are very close, increase the extension force
           else if (currentDistance < restLength * this.minCompressionRatio) {
-            restLength = restLength * 1.1;
+            restLength = restLength * 1.15; // More aggressive extension
           }
         }
         
@@ -88,7 +88,7 @@ export class JointConnectionSystem extends System {
         // Enhanced force calculation with adaptive stiffness
         let stiffness = jointPhysics.stiffness;
         
-        // Use progressive stiffness for more stable movements
+        // Use progressive stiffness for more effective movements
         if (this.progressiveStiffness) {
           // Calculate ratio of current distance to rest length
           const distanceRatio = distance / restLength;
@@ -96,16 +96,16 @@ export class JointConnectionSystem extends System {
           // Apply higher stiffness for extreme stretching or compression
           if (distanceRatio > this.maxStretchRatio) {
             // Additional stiffness proportional to how far beyond maxStretchRatio
-            const extraStiffness = (distanceRatio - this.maxStretchRatio) * 1.5;
+            const extraStiffness = (distanceRatio - this.maxStretchRatio) * 2.0; // Increased multiplier
             stiffness *= (1 + extraStiffness);
           } else if (distanceRatio < this.minCompressionRatio) {
             // Additional stiffness proportional to how far below minCompressionRatio
-            const extraStiffness = (this.minCompressionRatio - distanceRatio) * 1.5;
+            const extraStiffness = (this.minCompressionRatio - distanceRatio) * 2.0; // Increased multiplier
             stiffness *= (1 + extraStiffness);
           }
         }
         
-        // Calculate force with adapted stiffness 
+        // Calculate force with adapted stiffness and higher multiplier
         let forceMagnitude = stretch * stiffness * this.forceMultiplier;
         
         // Apply spring force in the direction of the connection

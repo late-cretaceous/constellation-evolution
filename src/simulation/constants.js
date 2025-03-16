@@ -13,25 +13,25 @@ export const MIN_SCALE = 0.5;      // Minimum zoom level
 export const MAX_SCALE = 2.0;      // Maximum zoom level
 
 // Simulation settings
-export const GENERATION_TIME = 120; // Increased from 45 to 120 seconds for better evolution
-export const INITIAL_POPULATION = 40; // Increased for larger area
-export const INITIAL_FOOD_AMOUNT = 100; // Increased for larger area
-export const DEFAULT_MUTATION_RATE = 0.1;
-export const DEFAULT_SIMULATION_SPEED = 1;
+export const GENERATION_TIME = 100; // Reduced from 120 to have more frequent generations 
+export const INITIAL_POPULATION = 40; // Keep this number
+export const INITIAL_FOOD_AMOUNT = 80; // Reduced from 100 for higher competition
+export const DEFAULT_MUTATION_RATE = 0.15; // Increased from 0.1 for more variation
+export const DEFAULT_SIMULATION_SPEED = 1.2; // Slightly faster simulation by default
 
 // Organism settings
 export const MIN_JOINT_COUNT = 3;
-export const MAX_JOINT_COUNT = 10; // Increased from 8 to 10 for more variation
+export const MAX_JOINT_COUNT = 10; // Increased from 8 for more variation
 export const DEFAULT_JOINT_COUNT = 5;
 export const JOINT_RADIUS = 5;
 export const JOINT_REST_LENGTH = 30;
-export const JOINT_STIFFNESS = 2.5;  // Reduced from 3.0 for more controlled movement
-export const JOINT_DAMPING = 0.97;   // Increased from 0.96 for more stable movement
+export const JOINT_STIFFNESS = 2.2;  // Adjusted for better movement dynamics
+export const JOINT_DAMPING = 0.98;   // More efficient movement
 
 // Food settings
 export const FOOD_RADIUS = 4;
-export const EATING_DISTANCE = 20; // Increased from 18 for easier food consumption
-export const FOOD_VALUE = 15;      // Increased from 10 for faster fitness growth
+export const EATING_DISTANCE = 18; // Slightly reduced from 20 for more challenge
+export const FOOD_VALUE = 20;      // Increased to create stronger fitness differences
 
 // UI settings
 export const MIN_POPULATION = 10;
