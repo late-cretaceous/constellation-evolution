@@ -4,7 +4,6 @@ import { saveOrganismToLibrary } from '../../utils/organismStorage';
 
 /**
  * Component to display a selected organism in a separate canvas
- * Enhanced with animation and save functionality
  * 
  * @param {Object} props - Component props
  * @param {Object} props.organismData - Data for the selected organism
@@ -24,9 +23,6 @@ const OrganismViewer = ({
   const [saveName, setSaveName] = useState('');
   const [saveNotes, setSaveNotes] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
-  const [animating, setAnimating] = useState(false);
-  const [simulationTime, setSimulationTime] = useState(0);
-  const animationRef = useRef(null);
   
   // Initialize organism name on selection
   useEffect(() => {
@@ -50,38 +46,18 @@ const OrganismViewer = ({
     
     // Enable save button
     setCanSave(true);
-    
-    // Stop any ongoing animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    
-    // Reset simulation time
-    setSimulationTime(0);
-    setAnimating(false);
   }, [organismData]);
-  
-  // Clean up animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, []);
   
   /**
    * Draw organism on the canvas
    * 
    * @param {CanvasRenderingContext2D} ctx - Canvas context
    * @param {Object} data - Organism data
-   * @param {number} time - Simulation time for animation
    */
-  const drawOrganism = (ctx, data, time = 0) => {
+  const drawOrganism = (ctx, data) => {
     if (!data || !data.joints || !data.connections) return;
     
-    const { joints, connections, genetics } = data;
+    const { joints, connections } = data;
     
     // Calculate bounding box
     let minX = Infinity;
@@ -122,32 +98,14 @@ const OrganismViewer = ({
     ctx.fillStyle = '#121330';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     
-    // Make a copy of joint data for animation
-    let jointData = joints;
-    
-    // If animating, update joint states based on genetic patterns
-    if (time > 0 && genetics) {
-      jointData = joints.map(joint => {
-        // Simple animation for preview - alternates between anchored/not anchored
-        // based on genetic pattern speed
-        const phase = (time * genetics.patternSpeed * 2) % 10;
-        const isAnchored = phase > 5 ? !joint.isAnchored : joint.isAnchored;
-        
-        return {
-          ...joint,
-          isAnchored
-        };
-      });
-    }
-    
     // Draw connections first
     ctx.beginPath();
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     
     for (const connection of connections) {
-      const fromJoint = jointData.find(j => j.id === connection.from);
-      const toJoint = jointData.find(j => j.id === connection.to);
+      const fromJoint = joints.find(j => j.id === connection.from);
+      const toJoint = joints.find(j => j.id === connection.to);
       
       if (fromJoint && toJoint) {
         ctx.moveTo(
@@ -164,7 +122,7 @@ const OrganismViewer = ({
     ctx.stroke();
     
     // Draw joints
-    for (const joint of jointData) {
+    for (const joint of joints) {
       ctx.beginPath();
       ctx.arc(
         joint.x * scale + offsetX,
@@ -258,38 +216,6 @@ const OrganismViewer = ({
   };
   
   /**
-   * Start animating the organism
-   */
-  const toggleAnimation = () => {
-    if (animating) {
-      // Stop animation
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      setAnimating(false);
-    } else {
-      // Start animation
-      setAnimating(true);
-      const startTime = performance.now();
-      
-      const animate = (time) => {
-        const elapsed = (time - startTime) / 1000;
-        setSimulationTime(elapsed);
-        
-        if (canvasRef.current && organismData) {
-          const ctx = canvasRef.current.getContext('2d');
-          drawOrganism(ctx, organismData, elapsed);
-        }
-        
-        animationRef.current = requestAnimationFrame(animate);
-      };
-      
-      animationRef.current = requestAnimationFrame(animate);
-    }
-  };
-  
-  /**
    * Open save form
    */
   const handleShowSaveForm = () => {
@@ -366,12 +292,6 @@ const OrganismViewer = ({
           height={200}
           className="organism-canvas"
         />
-        <button 
-          className={`animate-button ${animating ? 'active' : ''}`}
-          onClick={toggleAnimation}
-        >
-          {animating ? 'Stop Animation' : 'Animate'}
-        </button>
       </div>
       
       <div className="organism-stats">
