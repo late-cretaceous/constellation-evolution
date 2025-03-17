@@ -447,8 +447,12 @@ export function useECSSimulation(canvasRef) {
     const currentRealTime = performance.now() / 1000;
     const elapsedRealTime = currentRealTime - generationStartTimeRef.current;
     
+    // Adjust generation time based on simulation speed
+    // This ensures faster generations when using higher speeds
+    const speedAdjustedGenerationTime = GENERATION_TIME / speedRef.current;
+    
     let shouldEndGeneration = 
-      elapsedRealTime >= GENERATION_TIME || // Time-based termination
+      elapsedRealTime >= speedAdjustedGenerationTime || // Adjusted time-based termination
       foodEntities.length === 0 ||          // All food consumed
       totalFoodEatenRef.current >= foodAmountRef.current * 1.5 || // Enough food eaten
       frameCountRef.current >= 200000 ||    // Extremely high frame count
@@ -476,7 +480,9 @@ export function useECSSimulation(canvasRef) {
     // This is a safety mechanism in case the animation frame gets stuck
     clearTimeout(generationTimeoutRef.current);
     generationTimeoutRef.current = setTimeout(() => {
-      if (elapsedRealTime >= GENERATION_TIME * 1.5) {
+      // Also adjust the backup timeout based on simulation speed
+      const speedAdjustedGenerationTime = GENERATION_TIME / speedRef.current;
+      if (elapsedRealTime >= speedAdjustedGenerationTime * 1.5) {
         const nextGenStats = evolutionSystemRef.current.createNextGeneration();
         setStats(nextGenStats);
         setGeneration(prev => prev + 1);
@@ -491,7 +497,7 @@ export function useECSSimulation(canvasRef) {
         // Save state after generation change
         setTimeout(() => saveCurrentState(), 500);
       }
-    }, GENERATION_TIME * 1000);
+    }, speedAdjustedGenerationTime * 1000 * 1.5); // Use adjusted time for timeout too
     
     // Continue the animation loop if simulation is running
     if (isRunningRef.current) {

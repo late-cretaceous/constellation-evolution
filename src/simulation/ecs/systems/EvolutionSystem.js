@@ -10,7 +10,8 @@ import {
   CANVAS_WIDTH, 
   CANVAS_HEIGHT, 
   MIN_JOINT_COUNT, 
-  MAX_JOINT_COUNT 
+  MAX_JOINT_COUNT,
+  FOOD_RADIUS
 } from '../../constants';
 
 /**
@@ -48,10 +49,14 @@ export class EvolutionSystem extends System {
     this.tournamentSize = 4;        // Increased from 3 for stronger selection
     this.jointMutationChance = 0.18; // Increased from 0.15 for more body plan diversity
     
-    // Food clustering parameters (new)
+    // Food clustering parameters
     this.useFoodClustering = true;  // Use clustered food for better evolution
     this.foodClusterCount = 5;      // Number of food clusters
     this.foodClusterRadius = 200;   // Size of each food cluster
+    
+    // Food placement parameters (new)
+    this.minFoodDistanceFromOrganism = 50;  // Minimum distance food must be from any organism
+    this.maxPlacementAttempts = 10;         // Maximum number of attempts to place food
   }
 
   /**
@@ -131,16 +136,120 @@ export class EvolutionSystem extends System {
   }
   
   /**
+   * Check if a position is too close to any organism
+   * @private
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   * @param {number} minDistance - Minimum allowed distance
+   * @returns {boolean} - True if position is too close to an organism
+   */
+  isPositionNearOrganisms(x, y, minDistance) {
+    // Get all organisms
+    const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
+    
+    // For each organism, check if any of its joints are too close to the position
+    for (const organismEntity of organismEntities) {
+      const organism = organismEntity.getComponent(OrganismComponent);
+      
+      // Check each joint
+      for (const jointId of organism.jointIds) {
+        const jointEntity = this.world.getEntity(jointId);
+        if (!jointEntity) continue;
+        
+        const position = jointEntity.getComponent(PositionComponent);
+        const distance = Math.sqrt(
+          Math.pow(position.position.x - x, 2) +
+          Math.pow(position.position.y - y, 2)
+        );
+        
+        // If too close, return true
+        if (distance < minDistance) {
+          return true;
+        }
+      }
+    }
+    
+    // Not too close to any organism
+    return false;
+  }
+  
+  /**
+   * Get organism positions for checking proximity
+   * @private
+   * @returns {Array<{x: number, y: number, radius: number}>} - Array of organism positions
+   */
+  getOrganismPositions() {
+    const positions = [];
+    const organismEntities = this.world.getEntitiesWithComponent(OrganismComponent);
+    
+    for (const organismEntity of organismEntities) {
+      const organism = organismEntity.getComponent(OrganismComponent);
+      
+      // Calculate center position and bounding radius
+      let totalX = 0;
+      let totalY = 0;
+      let jointCount = 0;
+      let maxRadius = 0;
+      
+      for (const jointId of organism.jointIds) {
+        const jointEntity = this.world.getEntity(jointId);
+        if (!jointEntity) continue;
+        
+        const position = jointEntity.getComponent(PositionComponent);
+        totalX += position.position.x;
+        totalY += position.position.y;
+        jointCount++;
+      }
+      
+      if (jointCount > 0) {
+        const centerX = totalX / jointCount;
+        const centerY = totalY / jointCount;
+        
+        // Calculate maximum distance from center to any joint (plus joint radius)
+        for (const jointId of organism.jointIds) {
+          const jointEntity = this.world.getEntity(jointId);
+          if (!jointEntity) continue;
+          
+          const position = jointEntity.getComponent(PositionComponent);
+          const dx = position.position.x - centerX;
+          const dy = position.position.y - centerY;
+          const distance = Math.sqrt(dx * dx + dy * dy) + FOOD_RADIUS * 2;
+          
+          maxRadius = Math.max(maxRadius, distance);
+        }
+        
+        positions.push({
+          x: centerX,
+          y: centerY,
+          radius: Math.max(this.minFoodDistanceFromOrganism, maxRadius)
+        });
+      }
+    }
+    
+    return positions;
+  }
+  
+  /**
    * Initialize food using quadrant-based distribution
    * @private
    */
   initializeQuadrantFood() {
+    // Cache organism positions for efficient checking
+    const organismPositions = this.getOrganismPositions();
+    
     // Use quadrants to distribute food relatively evenly
     const quadrantWidth = CANVAS_WIDTH / 2;
     const quadrantHeight = CANVAS_HEIGHT / 2;
     
+    // Keep track of successful placements
+    let successfulPlacements = 0;
+    let totalAttempts = 0;
+    const maxTotalAttempts = this.foodAmount * 3; // Cap total attempts
+    
     // Distribute food among quadrants
-    for (let i = 0; i < this.foodAmount; i++) {
+    while (successfulPlacements < this.foodAmount && totalAttempts < maxTotalAttempts) {
+      totalAttempts++;
+      
       // Determine which quadrant to place food
       const quadrant = Math.floor(Math.random() * 4);
       
@@ -163,10 +272,41 @@ export class EvolutionSystem extends System {
           x = quadrantWidth + Math.random() * quadrantWidth;
           y = quadrantHeight + Math.random() * quadrantHeight;
           break;
+        default:
+          x = Math.random() * CANVAS_WIDTH;
+          y = Math.random() * CANVAS_HEIGHT;
       }
       
-      // Create food entity
-      this.entityFactory.createFood(x, y);
+      // Check if position is far enough from organisms
+      let isTooClose = false;
+      
+      for (const pos of organismPositions) {
+        const dx = x - pos.x;
+        const dy = y - pos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < pos.radius) {
+          isTooClose = true;
+          break;
+        }
+      }
+      
+      // If position is acceptable, create food
+      if (!isTooClose) {
+        this.entityFactory.createFood(x, y);
+        successfulPlacements++;
+      }
+    }
+    
+    // If we couldn't place all food, just place the remaining food randomly
+    // This prevents getting stuck if the world is too crowded
+    if (successfulPlacements < this.foodAmount) {
+      const remaining = this.foodAmount - successfulPlacements;
+      for (let i = 0; i < remaining; i++) {
+        const x = Math.random() * CANVAS_WIDTH;
+        const y = Math.random() * CANVAS_HEIGHT;
+        this.entityFactory.createFood(x, y);
+      }
     }
   }
   
@@ -175,14 +315,62 @@ export class EvolutionSystem extends System {
    * @private
    */
   initializeClusteredFood() {
-    // Create random cluster centers
-    const clusters = [];
+    // Cache organism positions for efficient checking
+    const organismPositions = this.getOrganismPositions();
     
     // Calculate padding from edges
     const padding = 100;
     
-    // Create cluster centers with reasonable spacing
-    for (let i = 0; i < this.foodClusterCount; i++) {
+    // Create cluster centers with reasonable spacing, ensuring they're not too close to organisms
+    const clusters = [];
+    let clusterAttempts = 0;
+    const maxClusterAttempts = this.foodClusterCount * 5;
+    
+    while (clusters.length < this.foodClusterCount && clusterAttempts < maxClusterAttempts) {
+      clusterAttempts++;
+      
+      // Generate potential cluster center
+      const centerX = padding + Math.random() * (CANVAS_WIDTH - padding * 2);
+      const centerY = padding + Math.random() * (CANVAS_HEIGHT - padding * 2);
+      
+      // Check if too close to organisms or other clusters
+      let isTooClose = false;
+      
+      // Check proximity to organisms
+      for (const pos of organismPositions) {
+        const dx = centerX - pos.x;
+        const dy = centerY - pos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Allow closer proximity to organisms for clusters, but still maintain some distance
+        if (distance < pos.radius * 0.7) {
+          isTooClose = true;
+          break;
+        }
+      }
+      
+      // Also check proximity to existing clusters (to avoid overlapping)
+      if (!isTooClose) {
+        for (const cluster of clusters) {
+          const dx = centerX - cluster.x;
+          const dy = centerY - cluster.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < this.foodClusterRadius * 1.5) {
+            isTooClose = true;
+            break;
+          }
+        }
+      }
+      
+      // If position is acceptable, add cluster
+      if (!isTooClose) {
+        clusters.push({ x: centerX, y: centerY });
+      }
+    }
+    
+    // If we couldn't create enough clusters, just make random ones
+    while (clusters.length < this.foodClusterCount) {
       clusters.push({
         x: padding + Math.random() * (CANVAS_WIDTH - padding * 2),
         y: padding + Math.random() * (CANVAS_HEIGHT - padding * 2)
@@ -191,10 +379,44 @@ export class EvolutionSystem extends System {
     
     // Add some completely random food (30% of total)
     const randomFoodCount = Math.floor(this.foodAmount * 0.3);
-    for (let i = 0; i < randomFoodCount; i++) {
+    let randomFoodPlaced = 0;
+    let randomAttempts = 0;
+    const maxRandomAttempts = randomFoodCount * 3;
+    
+    while (randomFoodPlaced < randomFoodCount && randomAttempts < maxRandomAttempts) {
+      randomAttempts++;
+      
       const x = padding + Math.random() * (CANVAS_WIDTH - padding * 2);
       const y = padding + Math.random() * (CANVAS_HEIGHT - padding * 2);
-      this.entityFactory.createFood(x, y);
+      
+      // Check if too close to organisms
+      let isTooClose = false;
+      for (const pos of organismPositions) {
+        const dx = x - pos.x;
+        const dy = y - pos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < pos.radius) {
+          isTooClose = true;
+          break;
+        }
+      }
+      
+      // If position is acceptable, create food
+      if (!isTooClose) {
+        this.entityFactory.createFood(x, y);
+        randomFoodPlaced++;
+      }
+    }
+    
+    // Place remaining random food without checking distance if we couldn't place enough
+    if (randomFoodPlaced < randomFoodCount) {
+      const remaining = randomFoodCount - randomFoodPlaced;
+      for (let i = 0; i < remaining; i++) {
+        const x = padding + Math.random() * (CANVAS_WIDTH - padding * 2);
+        const y = padding + Math.random() * (CANVAS_HEIGHT - padding * 2);
+        this.entityFactory.createFood(x, y);
+      }
     }
     
     // Distribute remaining food among clusters
@@ -211,7 +433,13 @@ export class EvolutionSystem extends System {
       }
       
       // Create food around this cluster
-      for (let j = 0; j < clusterFoodToAdd; j++) {
+      let clusterFoodPlaced = 0;
+      let clusterAttempts = 0;
+      const maxClusterFoodAttempts = clusterFoodToAdd * 3;
+      
+      while (clusterFoodPlaced < clusterFoodToAdd && clusterAttempts < maxClusterFoodAttempts) {
+        clusterAttempts++;
+        
         // Random angle and distance from cluster center
         const angle = Math.random() * Math.PI * 2;
         // Use square root for more uniform distribution within circle
@@ -224,7 +452,43 @@ export class EvolutionSystem extends System {
         const validX = Math.max(padding, Math.min(CANVAS_WIDTH - padding, x));
         const validY = Math.max(padding, Math.min(CANVAS_HEIGHT - padding, y));
         
-        this.entityFactory.createFood(validX, validY);
+        // Check if too close to organisms
+        let isTooClose = false;
+        for (const pos of organismPositions) {
+          const dx = validX - pos.x;
+          const dy = validY - pos.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < pos.radius) {
+            isTooClose = true;
+            break;
+          }
+        }
+        
+        // If position is acceptable, create food
+        if (!isTooClose) {
+          this.entityFactory.createFood(validX, validY);
+          clusterFoodPlaced++;
+        }
+      }
+      
+      // If we couldn't place all food for this cluster, place the remaining randomly in the cluster area
+      if (clusterFoodPlaced < clusterFoodToAdd) {
+        const remaining = clusterFoodToAdd - clusterFoodPlaced;
+        for (let j = 0; j < remaining; j++) {
+          // Random position within cluster radius
+          const angle = Math.random() * Math.PI * 2;
+          const distance = Math.sqrt(Math.random()) * this.foodClusterRadius;
+          
+          const x = cluster.x + Math.cos(angle) * distance;
+          const y = cluster.y + Math.sin(angle) * distance;
+          
+          // Ensure within canvas bounds
+          const validX = Math.max(padding, Math.min(CANVAS_WIDTH - padding, x));
+          const validY = Math.max(padding, Math.min(CANVAS_HEIGHT - padding, y));
+          
+          this.entityFactory.createFood(validX, validY);
+        }
       }
     }
   }
@@ -234,29 +498,57 @@ export class EvolutionSystem extends System {
    * @returns {Entity} - The created food entity
    */
   createFoodEntity() {
+    // Cache organism positions for efficient checking
+    const organismPositions = this.getOrganismPositions();
+    
     // Instead of completely random position, divide the canvas into a grid
     // and select a random cell to place the food in
     const gridSize = 200; // Size of each grid cell
     const numGridX = Math.ceil(CANVAS_WIDTH / gridSize);
     const numGridY = Math.ceil(CANVAS_HEIGHT / gridSize);
     
-    // Select a random grid cell
-    const gridX = Math.floor(Math.random() * numGridX);
-    const gridY = Math.floor(Math.random() * numGridY);
+    // Try several times to find a suitable position
+    for (let attempts = 0; attempts < this.maxPlacementAttempts; attempts++) {
+      // Select a random grid cell
+      const gridX = Math.floor(Math.random() * numGridX);
+      const gridY = Math.floor(Math.random() * numGridY);
+      
+      // Calculate position within grid cell (with padding)
+      const padding = gridSize * 0.1;
+      const gridStartX = gridX * gridSize + padding;
+      const gridStartY = gridY * gridSize + padding;
+      const gridWidth = Math.min(gridSize - padding * 2, CANVAS_WIDTH - gridStartX);
+      const gridHeight = Math.min(gridSize - padding * 2, CANVAS_HEIGHT - gridStartY);
+      
+      const x = gridStartX + Math.random() * gridWidth;
+      const y = gridStartY + Math.random() * gridHeight;
+      
+      // Check if position is far enough from organisms
+      let isTooClose = false;
+      
+      for (const pos of organismPositions) {
+        const dx = x - pos.x;
+        const dy = y - pos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < pos.radius) {
+          isTooClose = true;
+          break;
+        }
+      }
+      
+      // If position is acceptable, create food
+      if (!isTooClose) {
+        return this.entityFactory.createFood(x, y);
+      }
+    }
     
-    // Calculate position within grid cell (with padding)
-    const padding = gridSize * 0.1;
-    const gridStartX = gridX * gridSize + padding;
-    const gridStartY = gridY * gridSize + padding;
-    const gridWidth = Math.min(gridSize - padding * 2, CANVAS_WIDTH - gridStartX);
-    const gridHeight = Math.min(gridSize - padding * 2, CANVAS_HEIGHT - gridStartY);
+    // If we tried too many times without success, just place food randomly
+    // This prevents getting stuck if the world is too crowded
+    const x = Math.random() * CANVAS_WIDTH;
+    const y = Math.random() * CANVAS_HEIGHT;
     
-    const pos = new Vector2(
-      gridStartX + Math.random() * gridWidth,
-      gridStartY + Math.random() * gridHeight
-    );
-    
-    return this.entityFactory.createFood(pos.x, pos.y);
+    return this.entityFactory.createFood(x, y);
   }
 
   /**
@@ -268,27 +560,59 @@ export class EvolutionSystem extends System {
     const currentFoodCount = foodEntities.length;
     const foodToAdd = Math.min(amount, this.foodAmount - currentFoodCount);
     
+    // Cache organism positions for efficient checking
+    const organismPositions = this.getOrganismPositions();
+    
     // If using clustering, try to add food near existing food
     if (this.useFoodClustering && foodEntities.length > 0) {
       for (let i = 0; i < foodToAdd; i++) {
         if (Math.random() < 0.7 && foodEntities.length > 0) {
-          // Select a random existing food
-          const randomFoodIndex = Math.floor(Math.random() * foodEntities.length);
-          const existingFood = foodEntities[randomFoodIndex];
-          const foodPos = existingFood.getComponent(PositionComponent);
+          // Try several times to place food near existing food
+          let placed = false;
           
-          // Create new food nearby
-          const angle = Math.random() * Math.PI * 2;
-          const distance = 30 + Math.random() * 70; // Between 30-100 units away
+          for (let attempts = 0; attempts < this.maxPlacementAttempts; attempts++) {
+            // Select a random existing food
+            const randomFoodIndex = Math.floor(Math.random() * foodEntities.length);
+            const existingFood = foodEntities[randomFoodIndex];
+            const foodPos = existingFood.getComponent(PositionComponent);
+            
+            // Create new food nearby
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 30 + Math.random() * 70; // Between 30-100 units away
+            
+            const x = foodPos.position.x + Math.cos(angle) * distance;
+            const y = foodPos.position.y + Math.sin(angle) * distance;
+            
+            // Ensure within canvas bounds
+            const validX = Math.max(10, Math.min(CANVAS_WIDTH - 10, x));
+            const validY = Math.max(10, Math.min(CANVAS_HEIGHT - 10, y));
+            
+            // Check if position is far enough from organisms
+            let isTooClose = false;
+            
+            for (const pos of organismPositions) {
+              const dx = validX - pos.x;
+              const dy = validY - pos.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              
+              if (distance < pos.radius) {
+                isTooClose = true;
+                break;
+              }
+            }
+            
+            // If position is acceptable, create food
+            if (!isTooClose) {
+              this.entityFactory.createFood(validX, validY);
+              placed = true;
+              break;
+            }
+          }
           
-          const x = foodPos.position.x + Math.cos(angle) * distance;
-          const y = foodPos.position.y + Math.sin(angle) * distance;
-          
-          // Ensure within canvas bounds
-          const validX = Math.max(10, Math.min(CANVAS_WIDTH - 10, x));
-          const validY = Math.max(10, Math.min(CANVAS_HEIGHT - 10, y));
-          
-          this.entityFactory.createFood(validX, validY);
+          // If we couldn't place food near existing food, create it with the normal method
+          if (!placed) {
+            this.createFoodEntity();
+          }
         } else {
           // Create completely random food
           this.createFoodEntity();
